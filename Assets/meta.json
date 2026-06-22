@@ -2,14 +2,14 @@
   "category": "General",
   "changelog": "Initial",
   "description": "",
-  "guid": "d20aa9ed-eafc-4578-b320-4e3b7093129c",
-  "name": "TubeFin",
+  "guid": "de116ac7-1e5e-47c7-8c74-9a357d407f27",
+  "name": "FinTube",
   "overview": "Easily add YouTube Media",
-  "owner": "AECX",
-  "targetAbi": "10.8.1.0",
-  "timestamp": "2023-07-25T12:47:28.0000000Z",
-  "version": "1.0.1.0",
+  "owner": "Maxime Sahuc",
+  "targetAbi": "10.10.7.0",
+  "timestamp": "2026-06-22T00:00:00.0000000Z",
+  "version": "1.1.0.0",
   "status": "Active",
   "autoUpdate": false,
-  "imagePath": "/var/lib/jellyfin/plugins/TubeFin/logo.png"
+  "imagePath": "/var/lib/jellyfin/plugins/FinTube/logo.png"
 }

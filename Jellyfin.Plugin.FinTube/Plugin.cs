@@ -31,7 +31,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public override string Name => "FinTube";
 
     /// <inheritdoc />
-    public override Guid Id => Guid.Parse("d20aa9ed-eafc-4578-b320-4e3b7093129c");
+    public override Guid Id => Guid.Parse("de116ac7-1e5e-47c7-8c74-9a357d407f27");
 
     /// <summary>
     /// Gets the current plugin instance.

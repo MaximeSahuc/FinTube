@@ -2,7 +2,7 @@
 
 Easily add content from YouTube to your Jellyfin installation
 
-![](https://raw.githubusercontent.com/AECX/FinTube/master/Assets/logo.png)
+![](https://raw.githubusercontent.com/MaximeSahuc/FinTube/master/Assets/logo.png)
 
 ## Dependencies
 
@@ -21,8 +21,8 @@ For other OS please check your package manager.
 
 1. In your Admin Dashboard navigate to "Plugins"
 2. Switch to the "Repositories" tab
-3. Click "+" and add the Repository `https://raw.githubusercontent.com/AECX/FinTube/master/manifest.json`
-   Name it "HenkeGG" or "AECX" - Or whatever helps you remember
+3. Click "+" and add the Repository `https://raw.githubusercontent.com/MaximeSahuc/FinTube/master/manifest.json`
+   Name it "FinTube" - Or whatever helps you remember
 
 ### Install and configure the plugin
 

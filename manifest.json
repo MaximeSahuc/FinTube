@@ -1,55 +1,20 @@
 [
-        {
-        "guid": "d20aa9ed-eafc-4578-b320-4e3b7093129c",
-        "name": "FinTube",
-        "overview": "Import Videos/Music from YouTube",
-        "description": "Lets you download YT videos as mp4 or mp3 with support for id3v2 tags. Requires yt-dlp/youtube-dl and (optionally) id3v2.",
-        "owner": "Maurice 'AECX' Henke",
-        "category": "General",
-        "imageUrl": "https://raw.githubusercontent.com/AECX/FinTube/master/Assets/logo.png",
-          "versions": [
-            {
-              "version": "1.1.0.0",
-              "changelog": "Added possibility to provide a custom filename",
-              "targetAbi": "10.8.10.0",
-              "sourceUrl": "https://github.com/AECX/FinTube/releases/download/v1.1.0.0/FinTube-1.1.0.0.zip",
-              "checksum": "61a936d047cbaf23935a8686a1626834",
-              "timestamp": "2025-09-23T07:13:30Z"
-            },
-            {
-              "version": "1.0.1.1",
-              "changelog": "Fixed Version mismatch and libraries showing on DL page",
-              "targetAbi": "10.8.10.0",
-              "sourceUrl": "https://github.com/AECX/FinTube/releases/download/v1.0.1.1/FinTube-1.0.1.1.zip",
-              "checksum": "8d109651a763267083323c8e6390549f",
-              "timestamp": "2025-09-10T07:00:00Z"
-            },
-            {
-              "version": "1.0.1.0",
-              "changelog": "Initial Release",
-              "targetAbi": "10.8.10.0",
-              "sourceUrl": "https://github.com/AECX/FinTube/releases/download/v1.0.1/FinTube-1.0.1.zip",
-              "checksum": "20d1786dedf3213ad371edcbafea934d",
-              "timestamp": "2024-05-12T11:40:00Z"
-            }
-          ]
-    },
     {
-        "guid": "d20aa9ed-eafc-4578-b320-4e3b7093129c",
+        "guid": "de116ac7-1e5e-47c7-8c74-9a357d407f27",
         "name": "FinTube",
         "overview": "Import Videos/Music from YouTube",
         "description": "Lets you download YT videos as mp4 or mp3 with support for id3v2 tags. Requires yt-dlp/youtube-dl and (optionally) id3v2.",
-        "owner": "Maurice 'AECX' Henke",
+        "owner": "Maxime Sahuc",
         "category": "General",
-        "imageUrl": "https://raw.githubusercontent.com/AECX/FinTube/master/Assets/logo.png",
+        "imageUrl": "https://raw.githubusercontent.com/MaximeSahuc/FinTube/master/Assets/logo.png",
         "versions": [
             {
-                "version": "1.0.0.0",
-                "changelog": "Initial Release",
+                "version": "1.1.0.0",
+                "changelog": "Added possibility to provide a custom filename",
                 "targetAbi": "10.8.10.0",
-                "sourceUrl": "https://github.com/AECX/FinTube/releases/download/v1.0/FinTube-1.0.zip",
-                "checksum": "02eeb5390d5e2a93a241c986bbde6d60",
-                "timestamp": "2023-08-23T22:36:00Z"
+                "sourceUrl": "https://github.com/MaximeSahuc/FinTube/releases/download/v1.1.0.0/FinTube-1.1.0.0.zip",
+                "checksum": "61a936d047cbaf23935a8686a1626834",
+                "timestamp": "2025-09-23T07:13:30Z"
             }
         ]
     }
