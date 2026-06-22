@@ -71,7 +71,7 @@ public class FinTubeActivityController : ControllerBase
                 _logger.LogInformation("FinTubeDownload : {ytid} to {targetfoldeer}, prefer free format: {preferfreeformat} audio only: {audioonly}", data.ytid, data.targetfolder, data.preferfreeformat, data.audioonly);
 
                 Dictionary<string, object> response = new Dictionary<string, object>();
-                PluginConfiguration? config = Plugin.Instance.Configuration;
+                PluginConfiguration config = (Plugin.Instance ?? throw new Exception("Plugin not initialized")).Configuration;
                 String status = "";
 
 
@@ -101,6 +101,8 @@ public class FinTubeActivityController : ControllerBase
                     targetFilename = System.IO.Path.Combine(targetPath, $"{data.targetfilename}");
                 else if (data.audioonly && hasTags && data.title.Length > 1) // Use title Tag for filename
                     targetFilename = System.IO.Path.Combine(targetPath, $"{data.title}");
+                else // Fall back to the video id
+                    targetFilename = System.IO.Path.Combine(targetPath, $"{data.ytid}");
 
                 // Check if filename exists
                 if(System.IO.File.Exists(targetFilename))
