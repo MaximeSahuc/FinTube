@@ -78,9 +78,9 @@ public class FinTubeActivityController : ControllerBase
                 // check binaries
                 if(!System.IO.File.Exists(config.exec_YTDL))
                     throw new Exception("YT-DL Executable configured incorrectly");
-                
+
                 bool hasid3v2 = System.IO.File.Exists(config.exec_ID3);
-                
+
 
                 // Ensure proper / separator
                 data.targetfolder = String.Join("/", data.targetfolder.Split("/", StringSplitOptions.RemoveEmptyEntries));
@@ -101,8 +101,6 @@ public class FinTubeActivityController : ControllerBase
                     targetFilename = System.IO.Path.Combine(targetPath, $"{data.targetfilename}");
                 else if (data.audioonly && hasTags && data.title.Length > 1) // Use title Tag for filename
                     targetFilename = System.IO.Path.Combine(targetPath, $"{data.title}");
-                else // Use YTID as filename
-                    targetFilename = System.IO.Path.Combine(targetPath, $"{data.ytid}");
 
                 // Check if filename exists
                 if(System.IO.File.Exists(targetFilename))
@@ -110,8 +108,8 @@ public class FinTubeActivityController : ControllerBase
 
                 status += $"Filename: {targetFilename}<br>";
 
-                String args;
-                if(data.audioonly)
+                String args = "--write-description --write-info-json --write-thumbnail --write-link --write-subs --audio-quality 0 --sponsorblock-mark 'all' ";
+                if(data.audioonly)  // Audio only
                 {
                     args = "-x";
                     if(data.preferfreeformat)
@@ -120,15 +118,15 @@ public class FinTubeActivityController : ControllerBase
                         args += " --audio-format mp3";
                     args += $" -o \"{targetFilename}.%(ext)s\" {data.ytid}";
                 }
-                else
+                else  // Video
                 {
                     if(data.preferfreeformat)
                         args = "--prefer-free-format";
                     else
-                        args = "-f mp4";
+                        args = "-t mp4";
                     if(!string.IsNullOrEmpty(data.videoresolution))
                         args += $" -S res:{data.videoresolution}";
-                    args += $" -o \"{targetFilename}-%(title)s.%(ext)s\" {data.ytid}";
+                    args += $" -o \"%(channel,uploader)s/%(title)s/%(id)s.%(ext)s\" {data.ytid}";
                 }
 
                 status += $"Exec: {config.exec_YTDL} {args}<br>";
@@ -142,7 +140,7 @@ public class FinTubeActivityController : ControllerBase
                 {
                     args = $"-a \"{data.artist}\" -A \"{data.album}\" -t \"{data.title}\" -T \"{data.track}\" \"{targetFilename}{targetExtension}\"";
 
-                    status += $"Exec: {config.exec_ID3} {args}<br>"; 
+                    status += $"Exec: {config.exec_ID3} {args}<br>";
 
                     var procid3 = createProcess(config.exec_ID3, args);
                     procid3.Start();
