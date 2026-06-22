@@ -1,21 +1,21 @@
 [
-    {
-        "guid": "de116ac7-1e5e-47c7-8c74-9a357d407f27",
-        "name": "FinTube",
-        "overview": "Import Videos/Music from YouTube",
-        "description": "Lets you download YT videos as mp4 or mp3 with support for id3v2 tags. Requires yt-dlp/youtube-dl and (optionally) id3v2.",
-        "owner": "Maxime Sahuc",
-        "category": "General",
-        "imageUrl": "https://raw.githubusercontent.com/MaximeSahuc/FinTube/master/Assets/logo.png",
-        "versions": [
-            {
-                "version": "1.1.0.0",
-                "changelog": "Added possibility to provide a custom filename",
-                "targetAbi": "10.8.10.0",
-                "sourceUrl": "https://github.com/MaximeSahuc/FinTube/releases/download/v1.1.0.0/FinTube-1.1.0.0.zip",
-                "checksum": "61a936d047cbaf23935a8686a1626834",
-                "timestamp": "2025-09-23T07:13:30Z"
-            }
-        ]
-    }
+  {
+    "guid": "de116ac7-1e5e-47c7-8c74-9a357d407f27",
+    "name": "FinTube",
+    "overview": "Import Videos/Music from YouTube",
+    "description": "Lets you download YT videos as mp4 or mp3 with support for id3v2 tags. Requires yt-dlp/youtube-dl and (optionally) id3v2.",
+    "owner": "Maxime Sahuc",
+    "category": "General",
+    "imageUrl": "https://raw.githubusercontent.com/MaximeSahuc/FinTube/master/Assets/logo.png",
+    "versions": [
+      {
+        "version": "1.1.0.0",
+        "changelog": "Added possibility to provide a custom filename",
+        "targetAbi": "10.8.10.0",
+        "sourceUrl": "https://github.com/MaximeSahuc/FinTube/releases/download/v1.1.0.0/FinTube-1.1.0.0.zip",
+        "checksum": "11913f5063a5a57c8f4e7a6222747ef2",
+        "timestamp": "2026-06-22T00:00:00Z"
+      }
+    ]
+  }
 ]
