@@ -128,7 +128,9 @@ public class FinTubeActivityController : ControllerBase
                         args = "-t mp4";
                     if(!string.IsNullOrEmpty(data.videoresolution))
                         args += $" -S res:{data.videoresolution}";
-                    args += $" -o \"%(channel,uploader)s/%(title)s/%(id)s.%(ext)s\" {data.ytid}";
+
+                    targetFilename = System.IO.Path.Combine(targetPath, "%(channel,uploader)s/%(title)s/%(id)s.%(ext)s");
+                    args += $" -o \"{targetFilename}\" {data.ytid}";
                 }
 
                 status += $"Exec: {config.exec_YTDL} {args}<br>";
