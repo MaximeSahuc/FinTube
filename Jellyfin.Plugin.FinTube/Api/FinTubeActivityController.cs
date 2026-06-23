@@ -113,7 +113,7 @@ public class FinTubeActivityController : ControllerBase
                 String args = "--write-description --write-info-json --write-thumbnail --write-link --write-subs --audio-quality 0 --sponsorblock-mark 'all' ";
                 if(data.audioonly)  // Audio only
                 {
-                    args = "-x";
+                    args += "-x";
                     if(data.preferfreeformat)
                         args += " --prefer-free-format";
                     else
@@ -123,9 +123,9 @@ public class FinTubeActivityController : ControllerBase
                 else  // Video
                 {
                     if(data.preferfreeformat)
-                        args = "--prefer-free-format";
+                        args += "--prefer-free-format";
                     else
-                        args = "-t mp4";
+                        args += "-t mp4";
                     if(!string.IsNullOrEmpty(data.videoresolution))
                         args += $" -S res:{data.videoresolution}";
 
