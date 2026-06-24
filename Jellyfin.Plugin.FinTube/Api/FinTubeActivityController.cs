@@ -110,7 +110,7 @@ public class FinTubeActivityController : ControllerBase
 
                 status += $"Filename: {targetFilename}<br>";
 
-                String args = "--write-description --write-info-json --write-thumbnail --write-link --write-subs --audio-quality 0 --sponsorblock-mark 'all' ";
+                String args = "--write-description --write-info-json --write-thumbnail --write-link --write-subs --audio-quality 0 ";
                 if(data.audioonly)  // Audio only
                 {
                     args += "-x";

@@ -9,11 +9,11 @@
     "imageUrl": "https://raw.githubusercontent.com/MaximeSahuc/FinTube/master/Assets/logo.png",
     "versions": [
       {
-        "version": "1.1.0.2",
+        "version": "1.1.0.3",
         "changelog": "Added possibility to provide a custom filename",
         "targetAbi": "10.8.10.0",
-        "sourceUrl": "https://github.com/MaximeSahuc/FinTube/releases/download/v1.1.0.2/FinTube-1.1.0.2.zip",
-        "checksum": "6cd8075dce2cbfb0e4dd1991edfd5a4e",
+        "sourceUrl": "https://github.com/MaximeSahuc/FinTube/releases/download/v1.1.0.3/FinTube-1.1.0.3.zip",
+        "checksum": "a28a8e800273239367216c697e4c3ae4",
         "timestamp": "2026-06-23T00:00:00Z"
       }
     ]
