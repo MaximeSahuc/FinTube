@@ -245,12 +245,17 @@
 								html += '    <div style="background:' + color + '; height:100%; width:' + pct + '%; transition:width .3s;"></div>';
 								html += '  </div>';
 							}
-							if (job.status === 'Failed' && job.error) {
-								html += '  <details data-jobid="' + job.id + '" style="margin-top:0.4em;">';
-								html += '    <summary style="color:#f44336; cursor:pointer; font-size:0.9em;">Download failed - show log</summary>';
-								html += '    <pre style="color:#f44336; margin:0.3em 0 0; padding:0.5em; background:#1a1a1a; border-radius:3px; font-size:0.8em; white-space:pre-wrap; word-break:break-word; max-height:18em; overflow:auto;">'
-										+ escapeHtml(job.error) + '</pre>';
-								html += '  </details>';
+							if (job.status === 'Failed') {
+								if (job.error) {
+									html += '  <details data-jobid="' + job.id + '" style="margin-top:0.4em;">';
+									html += '    <summary style="color:#f44336; cursor:pointer; font-size:0.9em;">Download failed - show log</summary>';
+									html += '    <pre style="color:#f44336; margin:0.3em 0 0; padding:0.5em; background:#1a1a1a; border-radius:3px; font-size:0.8em; white-space:pre-wrap; word-break:break-word; max-height:18em; overflow:auto;">'
+											+ escapeHtml(job.error) + '</pre>';
+									html += '  </details>';
+								}
+								html += '  <button is="emby-button" type="button" class="raised emby-button fintube-retry-btn" data-jobid="' + job.id + '" style="margin-top:0.5em;">';
+								html += '    <span>Retry</span>';
+								html += '  </button>';
 							}
 							html += '</div>';
 						}
@@ -275,6 +280,34 @@
 							if (openJobs[d.getAttribute('data-jobid')])
 								d.open = true;
 						});
+
+						container.querySelectorAll('.fintube-retry-btn').forEach(function(btn) {
+							btn.addEventListener('click', function() {
+								retryJob(btn.getAttribute('data-jobid'), btn);
+							});
+						});
+					}
+
+					function retryJob(id, btn) {
+						if (btn) {
+							btn.setAttribute('disabled', true);
+							let label = btn.querySelector('span');
+							if (label) label.textContent = "Retrying…";
+						}
+						const url = window.ApiClient.getUrl("fintube/jobs/" + id + "/retry");
+						window.ApiClient.ajax({ type: "POST", url: url, dataType: "json", contentType: 'application/json' })
+							.then(function() {
+								// Force a re-render so the job's new state shows immediately.
+								lastJobsHtml = null;
+								refreshJobs();
+							})
+							.catch(function() {
+								if (btn) {
+									btn.removeAttribute('disabled');
+									let label = btn.querySelector('span');
+									if (label) label.textContent = "Retry";
+								}
+							});
 					}
 
 					function refreshJobs() {

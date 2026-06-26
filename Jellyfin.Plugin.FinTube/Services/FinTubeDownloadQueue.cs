@@ -107,6 +107,32 @@ public class FinTubeDownloadQueue : IDisposable
         return job;
     }
 
+    /// <summary>
+    /// Re-queue a finished (typically failed) job for another attempt, reusing
+    /// the original request. Resets its progress/log and puts it back on the
+    /// channel. Returns the job, or null when the id is unknown. A job that is
+    /// still queued or running is returned untouched.
+    /// </summary>
+    public FinTubeJob? Retry(string id)
+    {
+        if (!_jobs.TryGetValue(id, out var job))
+            return null;
+
+        if (job.Status is FinTubeJobStatus.Queued or FinTubeJobStatus.Running)
+            return job;
+
+        job.Status = FinTubeJobStatus.Queued;
+        job.Progress = 0;
+        job.Log = "";
+        job.Error = null;
+        job.StartedAt = null;
+        job.FinishedAt = null;
+
+        _channel.Writer.TryWrite(job);
+        _logger.LogInformation("Re-queued job {Id} for {Ytid}", job.Id, job.Data.ytid);
+        return job;
+    }
+
     /// <summary>Snapshot of all jobs, newest first.</summary>
     public IReadOnlyList<FinTubeJob> GetJobs() =>
         _jobs.Values.OrderByDescending(j => j.CreatedAt).ToList();
@@ -356,10 +382,10 @@ public class FinTubeDownloadQueue : IDisposable
 
             string cookiePath = Path.Combine(dataDir, "cookies.txt");
 
-            // yt-dlp wants Unix line endings in a Netscape cookie file.
-            string contents = config.cookies.Replace("\r\n", "\n").Replace("\r", "\n");
-            if (!contents.EndsWith("\n", StringComparison.Ordinal))
-                contents += "\n";
+            // Normalize the pasted cookies into a strict Netscape file so a
+            // malformed export (e.g. a domain/flag mismatch) can't make yt-dlp
+            // reject the whole file.
+            string contents = NormalizeCookies(config.cookies);
 
             File.WriteAllText(cookiePath, contents);
 
@@ -377,6 +403,53 @@ public class FinTubeDownloadQueue : IDisposable
             _logger.LogWarning(e, "Could not write cookies file; continuing without cookies");
             return "";
         }
+    }
+
+    /// <summary>
+    /// Rewrite pasted cookies into a strict, yt-dlp friendly Netscape cookie file:
+    /// Unix line endings, a leading magic header, and - crucially - an
+    /// "include subdomains" flag (field 2) that always agrees with whether the
+    /// domain (field 1) starts with a dot. A mismatch there makes Python's
+    /// http.cookiejar throw an AssertionError ("http.cookiejar bug!") and yt-dlp
+    /// refuses the entire file, failing every download. Records that don't have
+    /// the expected 7 tab-separated fields are dropped rather than allowed to
+    /// break the file.
+    /// </summary>
+    internal static string NormalizeCookies(string raw)
+    {
+        string text = raw.Replace("\r\n", "\n").Replace("\r", "\n");
+
+        var sb = new StringBuilder();
+        sb.Append("# Netscape HTTP Cookie File\n");
+
+        foreach (string rawLine in text.Split('\n'))
+        {
+            string line = rawLine.TrimEnd();
+            if (line.Length == 0)
+                continue;
+
+            // yt-dlp honours a "#HttpOnly_" prefix on the domain; ordinary
+            // comment/header lines are dropped (we emit our own header above).
+            bool httpOnly = line.StartsWith("#HttpOnly_", StringComparison.Ordinal);
+            if (line.StartsWith("#", StringComparison.Ordinal) && !httpOnly)
+                continue;
+
+            string prefix = httpOnly ? "#HttpOnly_" : "";
+            string body = httpOnly ? line.Substring(prefix.Length) : line;
+
+            string[] fields = body.Split('\t');
+            if (fields.Length != 7)
+                continue;
+
+            // Force the flag to match the domain so the two can never disagree.
+            fields[1] = fields[0].StartsWith(".", StringComparison.Ordinal) ? "TRUE" : "FALSE";
+
+            sb.Append(prefix);
+            sb.Append(string.Join("\t", fields));
+            sb.Append('\n');
+        }
+
+        return sb.ToString();
     }
 
     /// <summary>

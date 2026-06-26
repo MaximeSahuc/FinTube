@@ -93,6 +93,22 @@ public class FinTubeActivityController : ControllerBase
             return Ok();
         }
 
+        [HttpPost("jobs/{id}/retry")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public ActionResult<Dictionary<string, object>> FinTubeRetryJob(string id)
+        {
+            var job = _queue.Retry(id);
+            if (job is null)
+                return NotFound(new Dictionary<string, object> { { "message", "Unknown job" } });
+
+            return Ok(new Dictionary<string, object>
+            {
+                { "message", "Download re-queued" },
+                { "jobId", job.Id }
+            });
+        }
+
         [HttpGet("libraries")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public ActionResult<Dictionary<string, object>> FinTubeLibraries()

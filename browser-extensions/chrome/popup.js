@@ -31,11 +31,15 @@ function isSupportedUrl(url) {
 }
 
 function toNetscapeLine(c) {
-  const domain = c.domain.startsWith(".") ? c.domain : "." + c.domain;
+  // The include-subdomains flag (field 2) MUST agree with whether the domain
+  // (field 1) starts with a dot, otherwise http.cookiejar - used by yt-dlp -
+  // raises an AssertionError ("http.cookiejar bug!") and rejects the whole
+  // file. Keep the domain exactly as the browser reports it and derive the flag
+  // from it so the two can never disagree.
   const flag = c.domain.startsWith(".") ? "TRUE" : "FALSE";
   const secure = c.secure ? "TRUE" : "FALSE";
   const expiry = c.expirationDate ? Math.floor(c.expirationDate) : 0;
-  return `${domain}\t${flag}\t${c.path}\t${secure}\t${expiry}\t${c.name}\t${c.value}`;
+  return `${c.domain}\t${flag}\t${c.path}\t${secure}\t${expiry}\t${c.name}\t${c.value}`;
 }
 
 /** Collect cookies for every relevant domain and render a Netscape cookie file. */
