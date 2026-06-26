@@ -56,6 +56,9 @@ public class FinTubeJob
     public string Log { get; set; } = "";
     public string? Error { get; set; }
 
+    /// <summary>Video title resolved from yt-dlp, shown in the UI instead of the bare id.</summary>
+    public string? ResolvedTitle { get; set; }
+
     public DateTime CreatedAt { get; } = DateTime.UtcNow;
     public DateTime? StartedAt { get; set; }
     public DateTime? FinishedAt { get; set; }
@@ -63,6 +66,7 @@ public class FinTubeJob
     /// <summary>A human friendly label for the UI.</summary>
     public string Label =>
         !string.IsNullOrWhiteSpace(Data.title) ? Data.title :
+        !string.IsNullOrWhiteSpace(ResolvedTitle) ? ResolvedTitle :
         !string.IsNullOrWhiteSpace(Data.targetfilename) ? Data.targetfilename :
         Data.ytid;
 }
@@ -159,6 +163,10 @@ public class FinTubeDownloadQueue : IDisposable
 
         bool hasid3v2 = File.Exists(config.exec_ID3);
 
+        // Resolve a human friendly title so the queue shows the video name
+        // instead of the bare id. Best-effort: never fail the job over this.
+        TryResolveTitle(config.exec_YTDL, data.ytid, job, ct);
+
         // Ensure proper / separator
         data.targetfolder = string.Join("/", data.targetfolder.Split("/", StringSplitOptions.RemoveEmptyEntries));
         string targetPath = data.targetlibrary.EndsWith("/")
@@ -248,6 +256,20 @@ public class FinTubeDownloadQueue : IDisposable
 
         using var proc = new Process { StartInfo = startInfo };
 
+        // Keep the tail of stderr/stdout so we can surface a useful reason in the
+        // UI when the process fails instead of a bare "exited with code 1".
+        const int maxTailLines = 40;
+        var tail = new Queue<string>();
+        void Capture(string line)
+        {
+            lock (tail)
+            {
+                tail.Enqueue(line);
+                while (tail.Count > maxTailLines)
+                    tail.Dequeue();
+            }
+        }
+
         proc.OutputDataReceived += (_, e) =>
         {
             if (e.Data is null)
@@ -260,13 +282,17 @@ public class FinTubeDownloadQueue : IDisposable
                         System.Globalization.CultureInfo.InvariantCulture, out var pct))
                 {
                     job.Progress = pct;
+                    return;
                 }
             }
+            Capture(e.Data);
         };
         proc.ErrorDataReceived += (_, e) =>
         {
-            if (!string.IsNullOrWhiteSpace(e.Data))
-                _logger.LogDebug("[{Exe}] {Line}", exe, e.Data);
+            if (string.IsNullOrWhiteSpace(e.Data))
+                return;
+            _logger.LogDebug("[{Exe}] {Line}", exe, e.Data);
+            Capture(e.Data);
         };
 
         proc.Start();
@@ -286,7 +312,63 @@ public class FinTubeDownloadQueue : IDisposable
         proc.WaitForExit();
 
         if (proc.ExitCode != 0)
-            throw new Exception($"{Path.GetFileName(exe)} exited with code {proc.ExitCode}");
+        {
+            string output;
+            lock (tail)
+                output = string.Join("\n", tail);
+
+            string message = $"{Path.GetFileName(exe)} exited with code {proc.ExitCode}";
+            if (!string.IsNullOrWhiteSpace(output))
+            {
+                _logger.LogError("{Message}\n{Output}", message, output);
+                message += "\n" + output;
+            }
+
+            throw new Exception(message);
+        }
+    }
+
+    /// <summary>
+    /// Best-effort resolution of the video title via yt-dlp, used to label the
+    /// job in the UI. Failures are swallowed so they never block a download.
+    /// </summary>
+    private void TryResolveTitle(string exe, string ytid, FinTubeJob job, CancellationToken ct)
+    {
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = exe,
+                Arguments = $"--no-warnings --skip-download --print \"%(title)s\" {ytid}",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var proc = new Process { StartInfo = startInfo };
+            proc.Start();
+            string output = proc.StandardOutput.ReadToEnd();
+            proc.StandardError.ReadToEnd();
+
+            while (!proc.WaitForExit(250))
+            {
+                if (ct.IsCancellationRequested)
+                {
+                    try { proc.Kill(true); } catch { /* ignore */ }
+                    return;
+                }
+            }
+            proc.WaitForExit();
+
+            string title = output.Trim().Split('\n').FirstOrDefault()?.Trim() ?? "";
+            if (proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(title))
+                job.ResolvedTitle = title;
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "Could not resolve title for {Ytid}", ytid);
+        }
     }
 
     public void Dispose()

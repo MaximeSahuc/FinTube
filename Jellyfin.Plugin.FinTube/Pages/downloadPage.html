@@ -6,13 +6,18 @@
 			<span>Make sure to configure FinTube first.</span>
 
 			<div class="content-primary">
-				<img id="preview" src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" />
+				<img id="preview" src="" style="display:none;" />
 
 				<form id="FinTubeDLForm">
 
 					<div class="inputContainer">
 						<label class="inputLabel">YouTube Link or ID</label>
-						<input id="fintube-ytid" class="emby-input" name="fintube-ytid" value="dQw4w9WgXcQ" />
+						<div style="display:flex; gap:0.5em; align-items:center;">
+							<input id="fintube-ytid" class="emby-input" name="fintube-ytid" placeholder="https://youtu.be/..." style="flex:1;" />
+							<button id="fintube-paste" is="emby-button" type="button" class="raised emby-button" title="Paste link from clipboard" style="flex:none;">
+								<span>Paste</span>
+							</button>
+						</div>
 					</div>
 
 					<div class="selectContainer">
@@ -93,7 +98,7 @@
 					</div>
 
 					<button id="fintube-submit" is="emby-button" type="submit" class="raised button-submit block emby-button">
-						<span>Submit</span>
+						<span>Download</span>
 					</button>
 
 					<div id="fintube-result">
@@ -150,18 +155,52 @@
 
 					document.getElementById('preview').onload = function(e) {
 						let submitbtn = document.getElementById('fintube-submit');
-						
+
+						// Youtube returns a 120x90 placeholder for unknown ids.
 						if(this.width == 120)
 							submitbtn.setAttribute('disabled', true);
 						else
 							submitbtn.removeAttribute('disabled');
 					}
 
+					function updatePreview() {
+						let val = document.getElementById('fintube-ytid').value.trim();
+						let id = val ? parseYT(val) : false;
+						let preview = document.getElementById('preview');
+						let submitbtn = document.getElementById('fintube-submit');
+
+						if (id) {
+							preview.style.display = '';
+							preview.src = "https://img.youtube.com/vi/" + id + "/mqdefault.jpg";
+						} else {
+							preview.style.display = 'none';
+							preview.removeAttribute('src');
+							submitbtn.setAttribute('disabled', true);
+						}
+					}
+
 					document.getElementById('fintube-ytid')
-						.addEventListener("change", function() {
-							let id = parseYT(this.value);
-							document.getElementById('preview').src = "https://img.youtube.com/vi/" + id + "/mqdefault.jpg";
+						.addEventListener("input", updatePreview);
+
+					document.getElementById('fintube-paste')
+						.addEventListener('click', function() {
+							let result = document.getElementById('fintube-result');
+							if (!navigator.clipboard || !navigator.clipboard.readText) {
+								result.innerHTML = "<font color='red'>Clipboard access is unavailable (requires HTTPS).</font>";
+								return;
+							}
+							navigator.clipboard.readText().then(function(text) {
+								let input = document.getElementById('fintube-ytid');
+								input.value = text.trim();
+								updatePreview();
+								result.innerHTML = "";
+							}).catch(function() {
+								result.innerHTML = "<font color='red'>Could not read from clipboard. Check browser permissions.</font>";
+							});
 						});
+
+					// Start with the download button disabled until a link is entered.
+					document.getElementById('fintube-submit').setAttribute('disabled', true);
 
 					document.getElementById('fintube-audioonly')
 						.addEventListener("change", function() {
@@ -173,7 +212,19 @@
                 		.addEventListener('submit', function(e) {
 							e.preventDefault();
 
-							document.getElementById('fintube-result').innerHTML = "";
+							let submitbtn = document.getElementById('fintube-submit');
+							let submitlabel = submitbtn.querySelector('span');
+							let result = document.getElementById('fintube-result');
+
+							// Visual feedback so it's clear the click registered.
+							submitbtn.setAttribute('disabled', true);
+							submitlabel.textContent = "Queuing…";
+							result.innerHTML = "<font color='#2196f3'>Queuing download…</font>";
+
+							function resetButton() {
+								submitlabel.textContent = "Download";
+								submitbtn.removeAttribute('disabled');
+							}
 
 							let payload = {
 								"ytid": 				parseYT(getfintubeValue("ytid")),
@@ -193,16 +244,24 @@
 						let url = "fintube/submit_dl";
 						url = window.ApiClient.getUrl(url);
 
-						window.ApiClient.sendCustomQuery(url, payload).then(function(result) {
-							document.getElementById('fintube-result').innerHTML =
-								"<font color='green'>" + result["message"] + "</font>";
+						window.ApiClient.sendCustomQuery(url, payload).then(function(res) {
+							result.innerHTML =
+								"<font color='green'>" + res["message"] + "</font>";
+							resetButton();
 							refreshJobs();
 						}).catch(function(err) {
 							let msg = (err && err.responseText) ? err.responseText : "Failed to queue download";
-							document.getElementById('fintube-result').innerHTML =
+							result.innerHTML =
 								"<font color='red'>" + msg + "</font>";
+							resetButton();
 						});
 					});
+
+					function escapeHtml(text) {
+						let div = document.createElement('div');
+						div.textContent = text;
+						return div.innerHTML;
+					}
 
 					function statusColor(status) {
 						switch (status) {
@@ -237,7 +296,11 @@
 								html += '  </div>';
 							}
 							if (job.status === 'Failed' && job.error) {
-								html += '  <div style="color:#f44336; margin-top:0.3em; font-size:0.9em;">' + job.error + '</div>';
+								html += '  <details style="margin-top:0.4em;">';
+								html += '    <summary style="color:#f44336; cursor:pointer; font-size:0.9em;">Download failed — show log</summary>';
+								html += '    <pre style="color:#f44336; margin:0.3em 0 0; padding:0.5em; background:#1a1a1a; border-radius:3px; font-size:0.8em; white-space:pre-wrap; word-break:break-word; max-height:18em; overflow:auto;">'
+										+ escapeHtml(job.error) + '</pre>';
+								html += '  </details>';
 							}
 							html += '</div>';
 						}

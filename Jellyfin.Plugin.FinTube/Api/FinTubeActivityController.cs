@@ -31,8 +31,6 @@ public class FinTubeActivityController : ControllerBase
             _logger = loggerFactory.CreateLogger<FinTubeActivityController>();
             _libraryManager = libraryManager;
             _queue = queue;
-
-            _logger.LogInformation("FinTubeActivityController Loaded");
         }
 
         [HttpPost("submit_dl")]
