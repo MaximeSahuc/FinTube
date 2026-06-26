@@ -272,10 +272,15 @@
 						}
 					}
 
+					let lastJobsHtml = null;
+
 					function renderJobs(jobs) {
 						let container = document.getElementById('fintube-jobs');
 						if (!jobs || jobs.length === 0) {
-							container.innerHTML = "<p>No downloads yet.</p>";
+							if (lastJobsHtml !== "") {
+								container.innerHTML = "<p>No downloads yet.</p>";
+								lastJobsHtml = "";
+							}
 							return;
 						}
 
@@ -286,7 +291,7 @@
 							let showBar = (job.status === 'Running');
 							html += '<div style="border:1px solid #444; border-radius:4px; padding:0.6em 0.8em; margin-bottom:0.5em;">';
 							html += '  <div style="display:flex; justify-content:space-between; align-items:center;">';
-							html += '    <strong>' + (job.label || job.ytid) + '</strong>';
+							html += '    <strong>' + escapeHtml(job.label || job.ytid) + '</strong>';
 							html += '    <span style="color:' + color + '; font-weight:bold;">' + job.status +
 									(showBar ? ' ' + pct + '%' : '') + '</span>';
 							html += '  </div>';
@@ -296,7 +301,7 @@
 								html += '  </div>';
 							}
 							if (job.status === 'Failed' && job.error) {
-								html += '  <details style="margin-top:0.4em;">';
+								html += '  <details data-jobid="' + job.id + '" style="margin-top:0.4em;">';
 								html += '    <summary style="color:#f44336; cursor:pointer; font-size:0.9em;">Download failed — show log</summary>';
 								html += '    <pre style="color:#f44336; margin:0.3em 0 0; padding:0.5em; background:#1a1a1a; border-radius:3px; font-size:0.8em; white-space:pre-wrap; word-break:break-word; max-height:18em; overflow:auto;">'
 										+ escapeHtml(job.error) + '</pre>';
@@ -304,7 +309,27 @@
 							}
 							html += '</div>';
 						}
+
+						// Nothing changed: leave the DOM untouched so open log panels
+						// (and any in-progress text selection) are preserved.
+						if (html === lastJobsHtml)
+							return;
+
+						// Remember which log panels are open so we can restore them
+						// after we rebuild the list.
+						let openJobs = {};
+						container.querySelectorAll('details[data-jobid]').forEach(function(d) {
+							if (d.open)
+								openJobs[d.getAttribute('data-jobid')] = true;
+						});
+
 						container.innerHTML = html;
+						lastJobsHtml = html;
+
+						container.querySelectorAll('details[data-jobid]').forEach(function(d) {
+							if (openJobs[d.getAttribute('data-jobid')])
+								d.open = true;
+						});
 					}
 
 					function refreshJobs() {
