@@ -1,0 +1,300 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
+using Jellyfin.Plugin.FinTube.Configuration;
+using Microsoft.Extensions.Logging;
+
+namespace Jellyfin.Plugin.FinTube.Services;
+
+/// <summary>
+/// Data describing a download request coming from the UI.
+/// </summary>
+public class FinTubeData
+{
+    public string ytid { get; set; } = "";
+    public string targetlibrary { get; set; } = "";
+    public string targetfolder { get; set; } = "";
+    public string targetfilename { get; set; } = "";
+    public bool audioonly { get; set; } = false;
+    public bool preferfreeformat { get; set; } = false;
+    public string videoresolution { get; set; } = "";
+    public string artist { get; set; } = "";
+    public string album { get; set; } = "";
+    public string title { get; set; } = "";
+    public int track { get; set; } = 0;
+}
+
+public enum FinTubeJobStatus
+{
+    Queued,
+    Running,
+    Completed,
+    Failed
+}
+
+/// <summary>
+/// A single download job tracked by the queue.
+/// </summary>
+public class FinTubeJob
+{
+    public string Id { get; } = Guid.NewGuid().ToString("N");
+    public FinTubeData Data { get; set; } = new FinTubeData();
+
+    public FinTubeJobStatus Status { get; set; } = FinTubeJobStatus.Queued;
+
+    /// <summary>Download progress 0-100, or -1 when not applicable yet.</summary>
+    public double Progress { get; set; } = 0;
+
+    public string Log { get; set; } = "";
+    public string? Error { get; set; }
+
+    public DateTime CreatedAt { get; } = DateTime.UtcNow;
+    public DateTime? StartedAt { get; set; }
+    public DateTime? FinishedAt { get; set; }
+
+    /// <summary>A human friendly label for the UI.</summary>
+    public string Label =>
+        !string.IsNullOrWhiteSpace(Data.title) ? Data.title :
+        !string.IsNullOrWhiteSpace(Data.targetfilename) ? Data.targetfilename :
+        Data.ytid;
+}
+
+/// <summary>
+/// Background, strictly sequential download queue. A single worker drains the
+/// channel one job at a time so that two yt-dlp processes never run concurrently.
+/// Registered as a singleton so its state is shared across all controller instances.
+/// </summary>
+public class FinTubeDownloadQueue : IDisposable
+{
+    private readonly ILogger<FinTubeDownloadQueue> _logger;
+    private readonly Channel<FinTubeJob> _channel = Channel.CreateUnbounded<FinTubeJob>();
+    private readonly ConcurrentDictionary<string, FinTubeJob> _jobs = new();
+    private readonly CancellationTokenSource _cts = new();
+    private readonly Task _worker;
+
+    // Matches the line emitted by our --progress-template, e.g. "[fintube] 42.3%"
+    private static readonly Regex ProgressRegex =
+        new(@"\[fintube\]\s*([\d.]+)%", RegexOptions.Compiled);
+
+    public FinTubeDownloadQueue(ILogger<FinTubeDownloadQueue> logger)
+    {
+        _logger = logger;
+        _worker = Task.Run(() => WorkerLoop(_cts.Token));
+        _logger.LogInformation("FinTubeDownloadQueue started");
+    }
+
+    /// <summary>Enqueue a new download and return the created job.</summary>
+    public FinTubeJob Enqueue(FinTubeData data)
+    {
+        var job = new FinTubeJob { Data = data };
+        _jobs[job.Id] = job;
+        _channel.Writer.TryWrite(job);
+        _logger.LogInformation("Enqueued job {Id} for {Ytid}", job.Id, data.ytid);
+        return job;
+    }
+
+    /// <summary>Snapshot of all jobs, newest first.</summary>
+    public IReadOnlyList<FinTubeJob> GetJobs() =>
+        _jobs.Values.OrderByDescending(j => j.CreatedAt).ToList();
+
+    /// <summary>Drop finished (completed/failed) jobs from the tracking list.</summary>
+    public void ClearFinished()
+    {
+        foreach (var job in _jobs.Values
+                     .Where(j => j.Status is FinTubeJobStatus.Completed or FinTubeJobStatus.Failed)
+                     .ToList())
+        {
+            _jobs.TryRemove(job.Id, out _);
+        }
+    }
+
+    private async Task WorkerLoop(CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var job in _channel.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            {
+                try
+                {
+                    RunJob(job, ct);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Job {Id} failed", job.Id);
+                    job.Status = FinTubeJobStatus.Failed;
+                    job.Error = e.Message;
+                    job.Log += $"\n<font color='red'>{e.Message}</font>";
+                    job.FinishedAt = DateTime.UtcNow;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutting down.
+        }
+    }
+
+    private void RunJob(FinTubeJob job, CancellationToken ct)
+    {
+        job.Status = FinTubeJobStatus.Running;
+        job.StartedAt = DateTime.UtcNow;
+        job.Progress = 0;
+
+        var data = job.Data;
+        PluginConfiguration config = (Plugin.Instance
+            ?? throw new Exception("Plugin not initialized")).Configuration;
+        var status = new StringBuilder();
+
+        // check binaries
+        if (!File.Exists(config.exec_YTDL))
+            throw new Exception("YT-DL Executable configured incorrectly");
+
+        bool hasid3v2 = File.Exists(config.exec_ID3);
+
+        // Ensure proper / separator
+        data.targetfolder = string.Join("/", data.targetfolder.Split("/", StringSplitOptions.RemoveEmptyEntries));
+        string targetPath = data.targetlibrary.EndsWith("/")
+            ? data.targetlibrary + data.targetfolder
+            : data.targetlibrary + "/" + data.targetfolder;
+
+        if (!Directory.CreateDirectory(targetPath).Exists)
+            throw new Exception("Directory could not be created");
+
+        // Check for tags
+        bool hasTags = 1 < (data.title.Length + data.album.Length + data.artist.Length + data.track.ToString().Length);
+
+        string targetFilename;
+        string targetExtension = data.preferfreeformat
+            ? (data.audioonly ? ".opus" : ".webm")
+            : (data.audioonly ? ".mp3" : ".mp4");
+
+        if (!string.IsNullOrWhiteSpace(data.targetfilename))
+            targetFilename = Path.Combine(targetPath, $"{data.targetfilename}");
+        else if (data.audioonly && hasTags && data.title.Length > 1)
+            targetFilename = Path.Combine(targetPath, $"{data.title}");
+        else
+            targetFilename = Path.Combine(targetPath, $"{data.ytid}");
+
+        if (File.Exists(targetFilename))
+            throw new Exception($"File {targetFilename} already exists");
+
+        status.Append($"Filename: {targetFilename}<br>");
+
+        string progressArgs = "--newline --progress-template \"download:[fintube] %(progress._percent_str)s\" ";
+        string args = progressArgs + "--write-description --write-info-json --write-thumbnail --write-link --write-subs --audio-quality 0 ";
+        if (data.audioonly)
+        {
+            args += "-x";
+            if (data.preferfreeformat)
+                args += " --prefer-free-format";
+            else
+                args += " --audio-format mp3";
+            args += $" -o \"{targetFilename}.%(ext)s\" {data.ytid}";
+        }
+        else
+        {
+            if (data.preferfreeformat)
+                args += "--prefer-free-format";
+            else
+                args += "-t mp4";
+            if (!string.IsNullOrEmpty(data.videoresolution))
+                args += $" -S res:{data.videoresolution}";
+
+            targetFilename = Path.Combine(targetPath, "%(channel,uploader)s/%(title)s/%(id)s.%(ext)s");
+            args += $" -o \"{targetFilename}\" {data.ytid}";
+        }
+
+        status.Append($"Exec: {config.exec_YTDL} {args}<br>");
+        job.Log = status.ToString();
+
+        RunProcess(config.exec_YTDL, args, job, ct, parseProgress: true);
+
+        // If audioonly AND id3v2 AND tags are set - Tag the mp3 file
+        if (data.audioonly && hasid3v2 && hasTags)
+        {
+            string id3args = $"-a \"{data.artist}\" -A \"{data.album}\" -t \"{data.title}\" -T \"{data.track}\" \"{targetFilename}{targetExtension}\"";
+            status.Append($"Exec: {config.exec_ID3} {id3args}<br>");
+            job.Log = status.ToString();
+            RunProcess(config.exec_ID3, id3args, job, ct, parseProgress: false);
+        }
+
+        status.Append("<font color='green'>File Saved!</font>");
+        job.Log = status.ToString();
+        job.Progress = 100;
+        job.Status = FinTubeJobStatus.Completed;
+        job.FinishedAt = DateTime.UtcNow;
+        _logger.LogInformation("Job {Id} completed", job.Id);
+    }
+
+    private void RunProcess(string exe, string args, FinTubeJob job, CancellationToken ct, bool parseProgress)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = exe,
+            Arguments = args,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var proc = new Process { StartInfo = startInfo };
+
+        proc.OutputDataReceived += (_, e) =>
+        {
+            if (e.Data is null)
+                return;
+            if (parseProgress)
+            {
+                var m = ProgressRegex.Match(e.Data);
+                if (m.Success && double.TryParse(m.Groups[1].Value,
+                        System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var pct))
+                {
+                    job.Progress = pct;
+                }
+            }
+        };
+        proc.ErrorDataReceived += (_, e) =>
+        {
+            if (!string.IsNullOrWhiteSpace(e.Data))
+                _logger.LogDebug("[{Exe}] {Line}", exe, e.Data);
+        };
+
+        proc.Start();
+        proc.BeginOutputReadLine();
+        proc.BeginErrorReadLine();
+
+        while (!proc.WaitForExit(500))
+        {
+            if (ct.IsCancellationRequested)
+            {
+                try { proc.Kill(true); } catch { /* ignore */ }
+                throw new OperationCanceledException(ct);
+            }
+        }
+
+        // Ensure async readers flushed.
+        proc.WaitForExit();
+
+        if (proc.ExitCode != 0)
+            throw new Exception($"{Path.GetFileName(exe)} exited with code {proc.ExitCode}");
+    }
+
+    public void Dispose()
+    {
+        _channel.Writer.TryComplete();
+        _cts.Cancel();
+        try { _worker.Wait(TimeSpan.FromSeconds(2)); } catch { /* ignore */ }
+        _cts.Dispose();
+        GC.SuppressFinalize(this);
+    }
+}
