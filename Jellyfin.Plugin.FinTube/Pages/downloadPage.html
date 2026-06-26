@@ -5,6 +5,15 @@
 			<h2>FinTube Download</h2>
 			<span>Make sure to configure FinTube first.</span>
 
+			<div id="fintube-deps" style="display:none; margin-top:1em;"></div>
+
+			<div style="margin-top:0.5em;">
+				<button id="fintube-info-toggle" is="emby-button" type="button" class="button-flat emby-button">
+					<span>Show dependency info</span>
+				</button>
+				<div id="fintube-info-panel" style="display:none; margin-top:0.5em; border:1px solid #444; border-radius:4px; padding:0.6em 0.9em; font-size:0.85em; font-family:monospace; word-break:break-all;"></div>
+			</div>
+
 			<div class="content-primary">
 				<img id="preview" src="" style="display:none;" />
 
@@ -374,6 +383,160 @@
 							document.getElementById('fintube-targetlibrary').innerHTML = librariesHtml;
 						});
 					})();
+
+					// ---- Dependency detection & in-app install ----
+
+					let depPollTimer = null;
+
+					function fmtMB(bytes) {
+						return (bytes / 1048576).toFixed(1);
+					}
+
+					function progressBar(prog) {
+						let pct = (typeof prog.percent === 'number') ? prog.percent : 0;
+						let label;
+						if (prog.phase === 'extracting') {
+							label = 'Extracting…';
+							pct = 100;
+						} else if (prog.total > 0) {
+							label = 'Downloading… ' + pct + '% (' + fmtMB(prog.downloaded) + ' / ' + fmtMB(prog.total) + ' MB)';
+						} else {
+							label = 'Downloading… ' + fmtMB(prog.downloaded) + ' MB';
+						}
+
+						let html = '<div style="min-width:14em;">';
+						html += '  <div style="font-size:0.85em; margin-bottom:0.2em;">' + label + '</div>';
+						html += '  <div style="background:#333; border-radius:3px; height:8px; overflow:hidden;">';
+						html += '    <div style="background:#2196f3; height:100%; width:' + pct + '%; transition:width .3s;"></div>';
+						html += '  </div>';
+						html += '</div>';
+						return html;
+					}
+
+					function depRow(key, label, dep, required, prog) {
+						let ok = dep && dep.installed;
+						let installing = prog && prog.active;
+						let icon = ok ? '✅' : (required ? '⛔' : '⚠️');
+						let version = (ok && dep.version) ? ' <span style="opacity:0.7;">v' + escapeHtml(dep.version) + '</span>' : '';
+						let detail = ok
+							? (label + version + (dep.managed ? ' <span style="opacity:0.6;">(managed by FinTube)</span>' : ''))
+							: (label + ' — <span style="color:#f44336;">not found</span>');
+
+						let html = '<div style="display:flex; align-items:center; justify-content:space-between; gap:1em; padding:0.3em 0;">';
+						html += '  <span>' + icon + ' ' + detail + '</span>';
+						if (installing) {
+							html += progressBar(prog);
+						} else if (!ok && dep && dep.downloadable) {
+							html += '  <button is="emby-button" type="button" class="raised emby-button fintube-install-btn" data-dep="' + key + '" style="flex:none;">' +
+									'<span>Install ' + label + '</span></button>';
+						} else if (!ok && dep && !dep.downloadable) {
+							html += '  <span style="opacity:0.7; font-size:0.85em;">install manually</span>';
+						}
+						html += '</div>';
+						if (prog && prog.phase === 'error' && prog.error) {
+							html += '<div style="color:#f44336; font-size:0.85em;">' + escapeHtml(prog.error) + '</div>';
+						}
+						return html;
+					}
+
+					function renderDeps(data) {
+						let box = document.getElementById('fintube-deps');
+						let progYt = (data.progress && data.progress.ytdlp) || {};
+						let progDeno = (data.progress && data.progress.deno) || {};
+						let ytOk = data.ytdlp && data.ytdlp.installed;
+						let denoOk = data.deno && data.deno.installed;
+						let busy = progYt.active || progDeno.active;
+
+						// Everything present and nothing running: hide the banner.
+						if (ytOk && denoOk && !busy) {
+							box.style.display = 'none';
+							box.innerHTML = '';
+							return;
+						}
+
+						// yt-dlp missing is blocking (red), deno missing is a recommendation (amber).
+						let blocking = !ytOk;
+						let border = blocking ? '#f44336' : '#ff9800';
+						let bg = blocking ? 'rgba(244,67,54,0.12)' : 'rgba(255,152,0,0.12)';
+
+						let html = '<div style="border:1px solid ' + border + '; background:' + bg + '; border-radius:4px; padding:0.8em 1em;">';
+						html += '  <strong>' + (blocking ? 'Missing dependencies' : 'Recommended dependency missing') + '</strong>';
+						html += '  <div style="margin-top:0.5em;">';
+						html += depRow('ytdlp', 'yt-dlp', data.ytdlp, true, progYt);
+						html += depRow('deno', 'deno (JS runtime)', data.deno, false, progDeno);
+						html += '  </div>';
+						if (!denoOk && ytOk && !progDeno.active) {
+							html += '  <div style="margin-top:0.4em; font-size:0.85em; opacity:0.8;">Without a JS runtime, some YouTube formats may be missing.</div>';
+						}
+						html += '</div>';
+
+						box.innerHTML = html;
+						box.style.display = '';
+
+						box.querySelectorAll('.fintube-install-btn').forEach(function(btn) {
+							btn.addEventListener('click', function() { installDep(btn.getAttribute('data-dep')); });
+						});
+					}
+
+					function renderInfo(data) {
+						let panel = document.getElementById('fintube-info-panel');
+
+						function line(label, dep) {
+							let state = dep.installed
+								? ('installed' + (dep.version ? ' v' + dep.version : '') + (dep.managed ? ' (managed)' : ''))
+								: 'not installed';
+							return '<div><strong>' + label + ':</strong> ' + escapeHtml(state) + '</div>' +
+								'<div style="opacity:0.7; margin-bottom:0.4em;">' + escapeHtml(dep.path || '') + '</div>';
+						}
+
+						let html = '<div><strong>Install directory:</strong></div>';
+						html += '<div style="opacity:0.7; margin-bottom:0.6em;">' + escapeHtml(data.binDir || '') + '</div>';
+						html += line('yt-dlp', data.ytdlp || {});
+						html += line('deno', data.deno || {});
+						panel.innerHTML = html;
+					}
+
+					function installDep(key) {
+						const url = window.ApiClient.getUrl("fintube/dependencies/" + key + "/install");
+						window.ApiClient.ajax({ type: "POST", url: url, dataType: "json", contentType: 'application/json' })
+							.then(function() { checkDeps(); })
+							.catch(function(err) {
+								let m = (err && err.responseText) ? err.responseText : "Installation failed";
+								let box = document.getElementById('fintube-deps');
+								box.insertAdjacentHTML('beforeend', "<div style='color:#f44336; margin-top:0.3em;'>" + escapeHtml(m) + "</div>");
+							});
+					}
+
+					function ensureDepPolling(busy) {
+						if (busy && !depPollTimer) {
+							depPollTimer = setInterval(checkDeps, 700);
+						} else if (!busy && depPollTimer) {
+							clearInterval(depPollTimer);
+							depPollTimer = null;
+						}
+					}
+
+					function checkDeps() {
+						const url = window.ApiClient.getUrl("fintube/dependencies");
+						window.ApiClient.ajax({ type: "GET", url: url, dataType: "json", contentType: 'application/json' })
+							.then(function(data) {
+								renderDeps(data);
+								renderInfo(data);
+								let busy = (data.progress && (data.progress.ytdlp.active || data.progress.deno.active));
+								ensureDepPolling(busy);
+							})
+							.catch(function() { /* leave banner hidden on error */ });
+					}
+
+					document.getElementById('fintube-info-toggle')
+						.addEventListener('click', function() {
+							let panel = document.getElementById('fintube-info-panel');
+							let hidden = panel.style.display === 'none';
+							panel.style.display = hidden ? '' : 'none';
+							this.querySelector('span').textContent = hidden ? 'Hide dependency info' : 'Show dependency info';
+						});
+
+					checkDeps();
 				</script>
 			</div>
         </div>

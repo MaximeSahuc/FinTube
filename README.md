@@ -2,7 +2,7 @@
 
 Easily add content from YouTube to your Jellyfin installation
 
-![](https://raw.githubusercontent.com/MaximeSahuc/FinTube/master/Assets/logo.png)
+![](https://raw.githubusercontent.com/MaximeSahuc/FinTube/master/Assets/fintube-logo-horizontal.svg)
 
 ## Dependencies
 

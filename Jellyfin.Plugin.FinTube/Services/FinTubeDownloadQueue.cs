@@ -79,6 +79,7 @@ public class FinTubeJob
 public class FinTubeDownloadQueue : IDisposable
 {
     private readonly ILogger<FinTubeDownloadQueue> _logger;
+    private readonly FinTubeDependencyManager _deps;
     private readonly Channel<FinTubeJob> _channel = Channel.CreateUnbounded<FinTubeJob>();
     private readonly ConcurrentDictionary<string, FinTubeJob> _jobs = new();
     private readonly CancellationTokenSource _cts = new();
@@ -88,9 +89,10 @@ public class FinTubeDownloadQueue : IDisposable
     private static readonly Regex ProgressRegex =
         new(@"\[fintube\]\s*([\d.]+)%", RegexOptions.Compiled);
 
-    public FinTubeDownloadQueue(ILogger<FinTubeDownloadQueue> logger)
+    public FinTubeDownloadQueue(ILogger<FinTubeDownloadQueue> logger, FinTubeDependencyManager deps)
     {
         _logger = logger;
+        _deps = deps;
         _worker = Task.Run(() => WorkerLoop(_cts.Token));
         _logger.LogInformation("FinTubeDownloadQueue started");
     }
@@ -158,14 +160,17 @@ public class FinTubeDownloadQueue : IDisposable
         var status = new StringBuilder();
 
         // check binaries
-        if (!File.Exists(config.exec_YTDL))
-            throw new Exception("YT-DL Executable configured incorrectly");
+        string ytdlp = _deps.ResolveYtdlp()
+            ?? throw new Exception("yt-dlp is not installed. Install it from the FinTube download page.");
+
+        // Use the deno JS runtime when available so YouTube extraction stays complete.
+        string jsRuntimeArgs = _deps.GetJsRuntimeArgs();
 
         bool hasid3v2 = File.Exists(config.exec_ID3);
 
         // Resolve a human friendly title so the queue shows the video name
         // instead of the bare id. Best-effort: never fail the job over this.
-        TryResolveTitle(config.exec_YTDL, data.ytid, job, ct);
+        TryResolveTitle(ytdlp, jsRuntimeArgs, data.ytid, job, ct);
 
         // Ensure proper / separator
         data.targetfolder = string.Join("/", data.targetfolder.Split("/", StringSplitOptions.RemoveEmptyEntries));
@@ -197,7 +202,7 @@ public class FinTubeDownloadQueue : IDisposable
         status.Append($"Filename: {targetFilename}<br>");
 
         string progressArgs = "--newline --progress-template \"download:[fintube] %(progress._percent_str)s\" ";
-        string args = progressArgs + "--write-description --write-info-json --write-thumbnail --write-link --write-subs --audio-quality 0 ";
+        string args = jsRuntimeArgs + progressArgs + "--write-description --write-info-json --write-thumbnail --write-link --write-subs --audio-quality 0 ";
         if (data.audioonly)
         {
             args += "-x";
@@ -220,10 +225,10 @@ public class FinTubeDownloadQueue : IDisposable
             args += $" -o \"{targetFilename}\" {data.ytid}";
         }
 
-        status.Append($"Exec: {config.exec_YTDL} {args}<br>");
+        status.Append($"Exec: {ytdlp} {args}<br>");
         job.Log = status.ToString();
 
-        RunProcess(config.exec_YTDL, args, job, ct, parseProgress: true);
+        RunProcess(ytdlp, args, job, ct, parseProgress: true);
 
         // If audioonly AND id3v2 AND tags are set - Tag the mp3 file
         if (data.audioonly && hasid3v2 && hasTags)
@@ -332,14 +337,14 @@ public class FinTubeDownloadQueue : IDisposable
     /// Best-effort resolution of the video title via yt-dlp, used to label the
     /// job in the UI. Failures are swallowed so they never block a download.
     /// </summary>
-    private void TryResolveTitle(string exe, string ytid, FinTubeJob job, CancellationToken ct)
+    private void TryResolveTitle(string exe, string jsRuntimeArgs, string ytid, FinTubeJob job, CancellationToken ct)
     {
         try
         {
             var startInfo = new ProcessStartInfo
             {
                 FileName = exe,
-                Arguments = $"--no-warnings --skip-download --print \"%(title)s\" {ytid}",
+                Arguments = $"{jsRuntimeArgs}--no-warnings --skip-download --print \"%(title)s\" {ytid}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
