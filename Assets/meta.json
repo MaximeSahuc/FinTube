@@ -1,14 +1,14 @@
 {
   "category": "General",
-  "changelog": "Initial",
+  "changelog": "Audio-only download option; Prefer-free-format moved to Settings; one-click id3v2 install on Linux; queue shows video titles instead of IDs; removed non-working Paste button.",
   "description": "",
   "guid": "de116ac7-1e5e-47c7-8c74-9a357d407f27",
   "name": "FinTube",
   "overview": "Easily add YouTube Media",
   "owner": "Maxime Sahuc",
   "targetAbi": "10.10.7.0",
-  "timestamp": "2026-06-22T00:00:00.0000000Z",
-  "version": "1.1.0.0",
+  "timestamp": "2026-06-26T23:37:57Z",
+  "version": "1.1.0.10",
   "status": "Active",
   "autoUpdate": false,
   "imagePath": "/var/lib/jellyfin/plugins/FinTube/logo.png"

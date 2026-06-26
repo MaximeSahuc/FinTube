@@ -90,7 +90,7 @@ public class FinTubeDependencyManager
     public InstallProgress StartInstall(string name)
     {
         name = name.ToLowerInvariant();
-        if (name is not ("ytdlp" or "deno"))
+        if (name is not ("ytdlp" or "deno" or "id3v2"))
             throw new Exception($"Unknown dependency '{name}'");
 
         if (_progress.TryGetValue(name, out var existing) && existing.Active)
@@ -111,8 +111,10 @@ public class FinTubeDependencyManager
         {
             if (name == "ytdlp")
                 await InstallYtdlpAsync(progress, CancellationToken.None).ConfigureAwait(false);
-            else
+            else if (name == "deno")
                 await InstallDenoAsync(progress, CancellationToken.None).ConfigureAwait(false);
+            else
+                await InstallId3v2Async(progress, CancellationToken.None).ConfigureAwait(false);
 
             progress.Percent = 100;
             progress.Phase = "done";
@@ -145,6 +147,7 @@ public class FinTubeDependencyManager
 
     public string ManagedYtdlpPath => Path.Combine(BinDir, ExeName("yt-dlp"));
     public string ManagedDenoPath => Path.Combine(BinDir, ExeName("deno"));
+    public string ManagedId3v2Path => Path.Combine(BinDir, ExeName("id3v2"));
 
     /// <summary>
     /// Resolve the yt-dlp executable to use: the configured path if it exists,
@@ -173,6 +176,23 @@ public class FinTubeDependencyManager
             return ManagedDenoPath;
 
         return FindOnPath(ExeName("deno"));
+    }
+
+    /// <summary>
+    /// Resolve the id3v2 executable to use: the configured path if it exists,
+    /// otherwise the managed copy, otherwise whatever is found on PATH.
+    /// Returns null when none is available (id3v2 is optional, used for tagging).
+    /// </summary>
+    public string? ResolveId3v2()
+    {
+        string? configured = Plugin.Instance?.Configuration.exec_ID3;
+        if (!string.IsNullOrWhiteSpace(configured) && File.Exists(configured))
+            return configured;
+
+        if (File.Exists(ManagedId3v2Path))
+            return ManagedId3v2Path;
+
+        return FindOnPath(ExeName("id3v2"));
     }
 
     /// <summary>The yt-dlp argument that points it at the deno runtime, or empty when deno is missing.</summary>
@@ -213,6 +233,27 @@ public class FinTubeDependencyManager
             Managed = path is not null && PathsEqual(path, ManagedDenoPath),
             Version = version,
             Downloadable = GetDenoDownloadUrl() is not null
+        };
+    }
+
+    public DependencyStatus GetId3v2Status()
+    {
+        string? path = ResolveId3v2();
+        string version = "";
+        if (path is not null)
+        {
+            // id3v2 prints "id3v2 x.y.z ..." - keep just the first line.
+            string raw = QueryVersion(path, "--version");
+            version = raw.Split('\n').FirstOrDefault()?.Replace("id3v2", "").Trim() ?? "";
+        }
+
+        return new DependencyStatus
+        {
+            Installed = path is not null,
+            Path = path ?? ManagedId3v2Path,
+            Managed = path is not null && PathsEqual(path, ManagedId3v2Path),
+            Version = version,
+            Downloadable = GetId3v2DownloadUrl() is not null
         };
     }
 
@@ -267,6 +308,22 @@ public class FinTubeDependencyManager
         {
             try { if (File.Exists(zipPath)) File.Delete(zipPath); } catch { /* ignore */ }
         }
+    }
+
+    /// <summary>Download the id3v2 binary for this platform into the managed bin directory.</summary>
+    public async Task InstallId3v2Async(InstallProgress progress, CancellationToken ct)
+    {
+        string? url = GetId3v2DownloadUrl()
+            ?? throw new Exception("No id3v2 build is available for this platform/architecture.");
+
+        Directory.CreateDirectory(BinDir);
+        _logger.LogInformation("Downloading id3v2 from {Url}", url);
+
+        progress.Phase = "downloading";
+        await DownloadFileAsync(url, ManagedId3v2Path, progress, ct).ConfigureAwait(false);
+        MakeExecutable(ManagedId3v2Path);
+
+        _logger.LogInformation("id3v2 installed at {Path}", ManagedId3v2Path);
     }
 
     // ---- helpers ----------------------------------------------------------
@@ -418,6 +475,24 @@ public class FinTubeDependencyManager
         {
             Architecture.X64 => baseUrl + "deno-x86_64-unknown-linux-gnu.zip",
             Architecture.Arm64 => baseUrl + "deno-aarch64-unknown-linux-gnu.zip",
+            _ => null
+        };
+    }
+
+    private static string? GetId3v2DownloadUrl()
+    {
+        // The fork only publishes Linux builds (glibc-dynamic, id3lib statically
+        // linked). No Windows/macOS asset exists, so fall back to manual install
+        // on those platforms by returning null.
+        if (!OperatingSystem.IsLinux())
+            return null;
+
+        const string baseUrl = "https://github.com/MaximeSahuc/id3v2/releases/latest/download/";
+
+        return RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64 => baseUrl + "id3v2-linux-amd64",
+            Architecture.Arm64 => baseUrl + "id3v2-linux-arm64",
             _ => null
         };
     }

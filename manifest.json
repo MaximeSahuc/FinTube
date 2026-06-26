@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/MaximeSahuc/FinTube/master/Assets/logo.png",
     "versions": [
       {
+        "version": "1.1.0.10",
+        "changelog": "Audio-only download option; Prefer-free-format moved to Settings; one-click id3v2 install on Linux; queue shows video titles instead of IDs; removed non-working Paste button.",
+        "targetAbi": "10.8.10.0",
+        "sourceUrl": "https://github.com/MaximeSahuc/FinTube/releases/download/v1.1.0.10/FinTube-1.1.0.10.zip",
+        "checksum": "bfc35dda1913402abff63c6f573f2ac3",
+        "timestamp": "2026-06-26T23:37:57Z"
+      },
+      {
         "version": "1.1.0.9",
         "changelog": "Added possibility to provide a custom filename",
         "targetAbi": "10.8.10.0",

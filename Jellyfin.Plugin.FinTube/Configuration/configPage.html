@@ -9,8 +9,26 @@
         <div data-role="content">
             <div class="content-primary">
                 <h2>FinTube Dependencies</h2>
-                <p style="opacity:0.8;">Binaries are managed automatically by FinTube. Missing tools can be installed from the FinTube download page.</p>
+                <p style="opacity:0.8;">Binaries are managed automatically by FinTube. yt-dlp and deno can also be installed from the FinTube download page; id3v2 (optional, for audio tagging) can be installed below.</p>
                 <div id="fintube-info-panel" style="margin-top:0.5em; border:1px solid #444; border-radius:4px; padding:0.6em 0.9em; font-size:0.85em; font-family:monospace; word-break:break-all;">Loading…</div>
+
+                <div id="fintube-id3v2-box" style="margin-top:0.8em;"></div>
+
+                <form id="FinTubeDownloadOptionsForm" style="margin-top:1.5em;">
+                    <h2>Download Options</h2>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="fintube-preferfreeformat" name="preferfreeformat" type="checkbox" is="emby-checkbox" data-embycheckbox="true" class="emby-checkbox">
+                            <span class="checkboxLabel">Prefer free format</span>
+                        <span class="checkboxOutline"><span class="material-icons checkboxIcon checkboxIcon-checked check" aria-hidden="true"></span><span class="material-icons checkboxIcon checkboxIcon-unchecked " aria-hidden="true"></span></span></label>
+                        <div class="fieldDescription">Applies to every download. Will usually download audio as .opus and videos as .webm instead of .mp3/.mp4.</div>
+                    </div>
+
+                    <button id="fintube-options-save" is="emby-button" type="submit" class="raised button-submit block emby-button">
+                        <span>Save</span>
+                    </button>
+                </form>
 
                 <form id="FinTubeConfigForm" style="margin-top:1.5em;">
                     <h2>YouTube Cookies</h2>
@@ -68,7 +86,79 @@
                 html += '<div style="opacity:0.7; margin-bottom:0.6em;">' + escapeHtml(data.binDir || '') + '</div>';
                 html += line('yt-dlp', data.ytdlp);
                 html += line('deno', data.deno);
+                html += line('id3v2', data.id3v2);
                 panel.innerHTML = html;
+            }
+
+            function fmtMB(bytes) {
+                return (bytes / 1048576).toFixed(1);
+            }
+
+            let id3PollTimer = null;
+
+            // id3v2 is optional (audio tagging only) and Linux-only, so it gets
+            // its own install affordance here rather than the download-page banner.
+            function renderId3v2(data) {
+                let box = document.getElementById('fintube-id3v2-box');
+                let dep = data.id3v2 || {};
+                let prog = (data.progress && data.progress.id3v2) || {};
+
+                // Installed and idle: nothing to do, keep the section out of the way.
+                if (dep.installed && !prog.active) {
+                    box.innerHTML = '';
+                    box.style.display = 'none';
+                    return;
+                }
+                box.style.display = '';
+
+                let html = '<div style="border:1px solid #ff9800; background:rgba(255,152,0,0.12); border-radius:4px; padding:0.8em 1em;">';
+                html += '<strong>id3v2</strong> - optional, only needed to write artist / title / album / track tags onto audio downloads.';
+                html += '<div style="margin-top:0.5em; display:flex; align-items:center; justify-content:space-between; gap:1em;">';
+
+                if (prog.active) {
+                    let pct = (typeof prog.percent === 'number') ? prog.percent : 0;
+                    let label = prog.total > 0
+                        ? 'Downloading… ' + pct + '% (' + fmtMB(prog.downloaded) + ' / ' + fmtMB(prog.total) + ' MB)'
+                        : 'Downloading… ' + fmtMB(prog.downloaded) + ' MB';
+                    html += '<span>not installed</span>';
+                    html += '<div style="min-width:14em;"><div style="font-size:0.85em; margin-bottom:0.2em;">' + escapeHtml(label) + '</div>'
+                          + '<div style="background:#333; border-radius:3px; height:8px; overflow:hidden;"><div style="background:#2196f3; height:100%; width:' + pct + '%; transition:width .3s;"></div></div></div>';
+                } else if (dep.downloadable) {
+                    html += '<span>not installed</span>';
+                    html += '<button is="emby-button" type="button" id="fintube-id3v2-install" class="raised emby-button" style="flex:none;"><span>Install id3v2</span></button>';
+                } else {
+                    html += '<span style="opacity:0.85;">not installed - no automatic build for this platform; install it with your package manager.</span>';
+                }
+                html += '</div>';
+                if (prog.phase === 'error' && prog.error) {
+                    html += '<div style="color:#f44336; font-size:0.85em; margin-top:0.4em;">' + escapeHtml(prog.error) + '</div>';
+                }
+                html += '</div>';
+                box.innerHTML = html;
+
+                let btn = document.getElementById('fintube-id3v2-install');
+                if (btn)
+                    btn.addEventListener('click', installId3v2);
+            }
+
+            function installId3v2() {
+                const url = ApiClient.getUrl("fintube/dependencies/id3v2/install");
+                ApiClient.ajax({ type: "POST", url: url, dataType: "json", contentType: 'application/json' })
+                    .then(function() { loadDependencies(); })
+                    .catch(function(err) {
+                        let m = (err && err.responseText) ? err.responseText : "Installation failed";
+                        document.getElementById('fintube-id3v2-box')
+                            .insertAdjacentHTML('beforeend', "<div style='color:#f44336; margin-top:0.3em;'>" + escapeHtml(m) + "</div>");
+                    });
+            }
+
+            function ensureId3Polling(busy) {
+                if (busy && !id3PollTimer) {
+                    id3PollTimer = setInterval(loadDependencies, 700);
+                } else if (!busy && id3PollTimer) {
+                    clearInterval(id3PollTimer);
+                    id3PollTimer = null;
+                }
             }
 
             function loadDependencies() {
@@ -76,6 +166,8 @@
                 return ApiClient.ajax({ type: "GET", url: url, dataType: "json", contentType: 'application/json' })
                     .then(function(data) {
                         renderInfo(data);
+                        renderId3v2(data);
+                        ensureId3Polling(!!(data.progress && data.progress.id3v2 && data.progress.id3v2.active));
                     })
                     .catch(function() {
                         document.getElementById('fintube-info-panel').textContent =
@@ -86,6 +178,17 @@
             function loadConfig() {
                 return ApiClient.getPluginConfiguration(FinTubePluginId).then(function(config) {
                     document.getElementById('fintube-cookies').value = config.cookies || "";
+                    document.getElementById('fintube-preferfreeformat').checked = !!config.preferFreeFormat;
+                });
+            }
+
+            function saveOptions() {
+                Dashboard.showLoadingMsg();
+                return ApiClient.getPluginConfiguration(FinTubePluginId).then(function(config) {
+                    config.preferFreeFormat = document.getElementById('fintube-preferfreeformat').checked;
+                    return ApiClient.updatePluginConfiguration(FinTubePluginId, config).then(function(result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    });
                 });
             }
 
@@ -98,6 +201,13 @@
                     });
                 });
             }
+
+            document.querySelector('#FinTubeDownloadOptionsForm')
+                .addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    saveOptions();
+                    return false;
+                });
 
             document.querySelector('#FinTubeConfigForm')
                 .addEventListener('submit', function(e) {

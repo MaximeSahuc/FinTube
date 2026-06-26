@@ -13,12 +13,7 @@
 
 					<div class="inputContainer">
 						<label class="inputLabel">YouTube Link or ID</label>
-						<div style="display:flex; gap:0.5em; align-items:center;">
-							<input id="fintube-ytid" class="emby-input" name="fintube-ytid" placeholder="https://youtu.be/..." style="flex:1;" />
-							<button id="fintube-paste" is="emby-button" type="button" class="raised emby-button" title="Paste link from clipboard" style="flex:none;">
-								<span>Paste</span>
-							</button>
-						</div>
+						<input id="fintube-ytid" class="emby-input" name="fintube-ytid" placeholder="https://youtu.be/..." />
 					</div>
 
 					<div class="selectContainer">
@@ -30,13 +25,13 @@
 
 					<div class="checkboxContainer checkboxContainer-withDescription">
 						<label class="emby-checkbox-label">
-							<input id="fintube-preferfreeformat" name="preferfreeformat" type="checkbox" is="emby-checkbox" data-embycheckbox="true" class="emby-checkbox">
-							<span class="checkboxLabel">Prefer free format</span>
+							<input id="fintube-audioonly" name="audioonly" type="checkbox" is="emby-checkbox" data-embycheckbox="true" class="emby-checkbox">
+							<span class="checkboxLabel">Audio only</span>
 						<span class="checkboxOutline"><span class="material-icons checkboxIcon checkboxIcon-checked check" aria-hidden="true"></span><span class="material-icons checkboxIcon checkboxIcon-unchecked " aria-hidden="true"></span></span></label>
-						<div class="fieldDescription">Will usually download audio as .opus and videos as .webm</div>
+						<div class="fieldDescription">Download only the audio track (saved as .mp3, or .opus when "prefer free format" is enabled in settings). Otherwise the full video is saved.</div>
 					</div>
 
-					<div class="selectContainer">
+					<div id="fintube-videosettings" class="selectContainer">
 						<label class="inputLabel" for="fintube-videoresolution">Video resolution</label>
 						<select id="fintube-videoresolution" class="emby-input" name="fintube-videoresolution">
 							<option value="" selected>default</option>
@@ -136,22 +131,17 @@
 					document.getElementById('fintube-ytid')
 						.addEventListener("input", updatePreview);
 
-					document.getElementById('fintube-paste')
-						.addEventListener('click', function() {
-							let result = document.getElementById('fintube-result');
-							if (!navigator.clipboard || !navigator.clipboard.readText) {
-								result.innerHTML = "<font color='red'>Clipboard access is unavailable (requires HTTPS).</font>";
-								return;
-							}
-							navigator.clipboard.readText().then(function(text) {
-								let input = document.getElementById('fintube-ytid');
-								input.value = text.trim();
-								updatePreview();
-								result.innerHTML = "";
-							}).catch(function() {
-								result.innerHTML = "<font color='red'>Could not read from clipboard. Check browser permissions.</font>";
-							});
-						});
+					// Hide the (video-only) resolution selector when "Audio only" is on.
+					function updateAudioOnly() {
+						let audioonly = document.getElementById('fintube-audioonly').checked;
+						document.getElementById('fintube-videosettings').style.display =
+							audioonly ? 'none' : '';
+					}
+
+					document.getElementById('fintube-audioonly')
+						.addEventListener('change', updateAudioOnly);
+
+					updateAudioOnly();
 
 					// Start with the download button disabled until a link is entered.
 					document.getElementById('fintube-submit').setAttribute('disabled', true);
@@ -178,7 +168,7 @@
 								"ytid": 				parseYT(getfintubeValue("ytid")),
 								"targetlibrary":		getfintubeValue("targetlibrary"),
 								"videoresolution":		getfintubeValue("videoresolution"),
-								"preferfreeformat": 	document.getElementById("fintube-preferfreeformat").checked
+								"audioonly": 			document.getElementById("fintube-audioonly").checked
 							}
 
 

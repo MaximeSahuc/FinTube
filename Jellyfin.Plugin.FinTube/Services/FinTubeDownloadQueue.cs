@@ -104,7 +104,40 @@ public class FinTubeDownloadQueue : IDisposable
         _jobs[job.Id] = job;
         _channel.Writer.TryWrite(job);
         _logger.LogInformation("Enqueued job {Id} for {Ytid}", job.Id, data.ytid);
+
+        // Resolve the video title right away (best-effort, off the request thread)
+        // so the queue shows the name instead of the bare id while it waits its
+        // turn behind other downloads. RunJob still resolves it as a fallback.
+        ResolveTitleInBackground(job);
         return job;
+    }
+
+    /// <summary>
+    /// Fire-and-forget title resolution used at enqueue time. Swallows every
+    /// failure: a missing title must never affect the actual download.
+    /// </summary>
+    private void ResolveTitleInBackground(FinTubeJob job)
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                string? ytdlp = _deps.ResolveYtdlp();
+                if (ytdlp is null)
+                    return;
+
+                var config = Plugin.Instance?.Configuration;
+                if (config is null)
+                    return;
+
+                string preArgs = _deps.GetJsRuntimeArgs() + BuildCookieArgs(config);
+                TryResolveTitle(ytdlp, preArgs, job.Data.ytid, job, _cts.Token);
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug(e, "Background title resolution failed for job {Id}", job.Id);
+            }
+        });
     }
 
     /// <summary>
@@ -185,6 +218,10 @@ public class FinTubeDownloadQueue : IDisposable
             ?? throw new Exception("Plugin not initialized")).Configuration;
         var status = new StringBuilder();
 
+        // "Prefer free format" is a server-side setting (FinTube settings page),
+        // not a per-download toggle, so take it from the configuration.
+        data.preferfreeformat = config.preferFreeFormat;
+
         // check binaries
         string ytdlp = _deps.ResolveYtdlp()
             ?? throw new Exception("yt-dlp is not installed. Install it from the FinTube download page.");
@@ -196,11 +233,15 @@ public class FinTubeDownloadQueue : IDisposable
         // extension), pass them to yt-dlp so age-restricted/private videos work.
         string cookieArgs = BuildCookieArgs(config);
 
-        bool hasid3v2 = File.Exists(config.exec_ID3);
+        // Prefer the configured path, then the FinTube-managed copy, then PATH.
+        string? id3v2 = _deps.ResolveId3v2();
+        bool hasid3v2 = id3v2 is not null;
 
         // Resolve a human friendly title so the queue shows the video name
         // instead of the bare id. Best-effort: never fail the job over this.
-        TryResolveTitle(ytdlp, jsRuntimeArgs + cookieArgs, data.ytid, job, ct);
+        // Usually already done at enqueue time; only retry if that didn't stick.
+        if (string.IsNullOrWhiteSpace(job.ResolvedTitle))
+            TryResolveTitle(ytdlp, jsRuntimeArgs + cookieArgs, data.ytid, job, ct);
 
         // Ensure proper / separator
         data.targetfolder = string.Join("/", data.targetfolder.Split("/", StringSplitOptions.RemoveEmptyEntries));
@@ -264,9 +305,9 @@ public class FinTubeDownloadQueue : IDisposable
         if (data.audioonly && hasid3v2 && hasTags)
         {
             string id3args = $"-a \"{data.artist}\" -A \"{data.album}\" -t \"{data.title}\" -T \"{data.track}\" \"{targetFilename}{targetExtension}\"";
-            status.Append($"Exec: {config.exec_ID3} {id3args}<br>");
+            status.Append($"Exec: {id3v2} {id3args}<br>");
             job.Log = status.ToString();
-            RunProcess(config.exec_ID3, id3args, job, ct, parseProgress: false);
+            RunProcess(id3v2!, id3args, job, ct, parseProgress: false);
         }
 
         status.Append("<font color='green'>File Saved!</font>");

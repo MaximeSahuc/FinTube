@@ -137,10 +137,12 @@ public class FinTubeActivityController : ControllerBase
                 { "binDir", _deps.BinDir },
                 { "ytdlp", _deps.GetYtdlpStatus() },
                 { "deno", _deps.GetDenoStatus() },
+                { "id3v2", _deps.GetId3v2Status() },
                 { "progress", new Dictionary<string, object>
                     {
                         { "ytdlp", _deps.GetProgress("ytdlp") },
-                        { "deno", _deps.GetProgress("deno") }
+                        { "deno", _deps.GetProgress("deno") },
+                        { "id3v2", _deps.GetProgress("id3v2") }
                     }
                 }
             });

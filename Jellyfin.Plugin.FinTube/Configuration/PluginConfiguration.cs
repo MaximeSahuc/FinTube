@@ -15,6 +15,7 @@ public class PluginConfiguration : BasePluginConfiguration
         exec_YTDL = "/usr/local/bin/yt-dlp";
         exec_ID3 = "/usr/bin/id3v2";
         cookies = string.Empty;
+        preferFreeFormat = false;
     }
 
     /// <summary>
@@ -33,4 +34,11 @@ public class PluginConfiguration : BasePluginConfiguration
     /// members-only videos. Easiest filled with the FinTube browser extension.
     /// </summary>
     public string cookies { get; set; }
+
+    /// <summary>
+    /// Prefer free/open formats when downloading (yt-dlp <c>--prefer-free-format</c>).
+    /// Usually yields audio as .opus and video as .webm instead of .mp3/.mp4.
+    /// Applies to every download; set from the FinTube settings page.
+    /// </summary>
+    public bool preferFreeFormat { get; set; }
 }
