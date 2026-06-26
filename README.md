@@ -4,11 +4,20 @@ Easily add content from YouTube to your Jellyfin installation
 
 ![](https://raw.githubusercontent.com/MaximeSahuc/FinTube/master/Assets/fintube-logo-horizontal.svg)
 
+## Features
+
+- Download YouTube videos as **video** (mp4 / webm) or **audio** (mp3 / opus) straight into a Jellyfin library.
+- Pick the target library, resolution, and free-format preference per download.
+- id3v2 tagging (artist, title, album, track) for audio.
+- Live download queue with progress and error logs.
+- **Automatic dependency management** - yt-dlp and the deno JS runtime are downloaded for you; missing tools can be installed from the FinTube page.
+- **Cookie support** for age-restricted, private, and members-only videos, with a companion [browser extension](#browser-extension) to export them in one click.
+
 ## Dependencies
 
-FinTube requires [YouTube-DL/YouTube-DLP](https://github.com/yt-dlp/yt-dlp) and [id3v2](https://sourceforge.net/projects/id3v2/) for full functionality, however YT-DLP is sufficient for operation.
-
-Check the link above to install YT-DLP and install id3v2:
+FinTube uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) and a JS runtime (deno), both of which it can
+download and manage automatically. [id3v2](https://sourceforge.net/projects/id3v2/) is optional and
+only needed for tagging audio files:
 
 - Debian/Ubuntu `# sudo apt install id3v2`
 - Arch `# sudo pacman -S id3v2`
@@ -28,8 +37,38 @@ For other OS please check your package manager.
 
 1. Switch to the "Catalog" tab
 2. Search for the "FinTube" plugin and click install
-3. Restart the Server and head back to the "Plugins" Sections
-4. Click on FinTube and Select "Settings", enter a valid executable for yt-dlp/youtube-dl
-5. Optionally: Enter a valid executable for id3v2 to be able to Tag Music with Artist, Title, Album and Track information
+3. Restart the Server and head back to the "Plugins" section
+4. Open **FinTube → Settings**. Binaries (yt-dlp, deno) are managed automatically; install any that
+   are missing from the FinTube download page.
+5. Optionally install id3v2 to tag music with Artist, Title, Album and Track information.
 
-Now you are ready to go, head to the "FinTube" plugin page (at the bottom of your dashboard navigation), enter information as desired to start importing from YouTube.
+Now you are ready to go, head to the "FinTube" plugin page (at the bottom of your dashboard
+navigation), enter information as desired to start importing from YouTube.
+
+## Cookies (age-restricted / private videos)
+
+Some videos won't download because YouTube requires a logged-in session (age-restricted, private, or
+members-only content). FinTube can pass your browser cookies to yt-dlp to get past this:
+
+1. Get your cookies in Netscape format (the easiest way is the [browser extension](#browser-extension)
+   below).
+2. Paste them into **FinTube → Settings → YouTube Cookies** and click **Save**.
+
+FinTube stores the cookies, writes them to a cookie file, and hands it to yt-dlp via `--cookies` for
+every download. Cookies expire - re-export and paste a fresh set if logged-in downloads start failing
+again.
+
+## Browser extension
+
+FinTube ships with a companion browser extension that exports your YouTube cookies in one click,
+ready to paste into the plugin settings. It only copies cookies to your clipboard - it never talks to
+your server or uploads anything.
+
+Prebuilt extensions are committed to the repo — download and install, no building required:
+
+| Browser | Download | Setup guide |
+|---------|----------|-------------|
+| Firefox / LibreWolf / Zen … | [`fintube-extension-firefox.xpi`](./browser-extensions/fintube-extension-firefox.xpi) | [`browser-extensions/firefox/README.md`](./browser-extensions/firefox/README.md) |
+| Chrome / Edge / Brave / Vivaldi … | [`fintube-extension-chrome.zip`](./browser-extensions/fintube-extension-chrome.zip) | [`browser-extensions/chrome/README.md`](./browser-extensions/chrome/README.md) |
+
+See [`browser-extensions/README.md`](./browser-extensions/README.md) for an overview.

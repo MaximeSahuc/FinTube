@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="hd">
+    <img class="hd-logo" src="icons/app-icon.svg" alt="" aria-hidden="true">
+    <h1 class="hd-title" data-i18n="extName"></h1>
+  </header>
+
+  <main class="body">
+    <div id="status" class="pill pill-muted">
+      <span class="dot"></span>
+      <span id="status-text" data-i18n="popupChecking"></span>
+    </div>
+
+    <p class="lead" data-i18n="popupLead"></p>
+
+    <textarea id="cookie-box" class="cookie-box" readonly spellcheck="false"
+              data-i18n-placeholder="popupEmpty"></textarea>
+
+    <button class="btn" id="copy-btn" disabled>
+      <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>
+      <span id="btn-text" data-i18n="popupCopyBtn"></span>
+    </button>
+
+    <ol class="steps">
+      <li data-i18n="popupStep1"></li>
+      <li data-i18n="popupStep2"></li>
+      <li data-i18n="popupStep3"></li>
+    </ol>
+
+    <div id="empty-hint" class="fallback" hidden>
+      <div class="fallback-title" data-i18n="popupNoCookiesTitle"></div>
+      <div class="fallback-desc" data-i18n="popupNoCookiesDesc"></div>
+    </div>
+  </main>
+
+  <footer class="ft">
+    <span data-i18n="popupPrivacy"></span>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

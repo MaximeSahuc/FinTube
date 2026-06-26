@@ -166,11 +166,15 @@ public class FinTubeDownloadQueue : IDisposable
         // Use the deno JS runtime when available so YouTube extraction stays complete.
         string jsRuntimeArgs = _deps.GetJsRuntimeArgs();
 
+        // When cookies are configured (e.g. exported with the FinTube browser
+        // extension), pass them to yt-dlp so age-restricted/private videos work.
+        string cookieArgs = BuildCookieArgs(config);
+
         bool hasid3v2 = File.Exists(config.exec_ID3);
 
         // Resolve a human friendly title so the queue shows the video name
         // instead of the bare id. Best-effort: never fail the job over this.
-        TryResolveTitle(ytdlp, jsRuntimeArgs, data.ytid, job, ct);
+        TryResolveTitle(ytdlp, jsRuntimeArgs + cookieArgs, data.ytid, job, ct);
 
         // Ensure proper / separator
         data.targetfolder = string.Join("/", data.targetfolder.Split("/", StringSplitOptions.RemoveEmptyEntries));
@@ -202,7 +206,7 @@ public class FinTubeDownloadQueue : IDisposable
         status.Append($"Filename: {targetFilename}<br>");
 
         string progressArgs = "--newline --progress-template \"download:[fintube] %(progress._percent_str)s\" ";
-        string args = jsRuntimeArgs + progressArgs + "--write-description --write-info-json --write-thumbnail --write-link --write-subs --audio-quality 0 ";
+        string args = jsRuntimeArgs + cookieArgs + progressArgs + "--write-description --write-info-json --write-thumbnail --write-link --write-subs --audio-quality 0 ";
         if (data.audioonly)
         {
             args += "-x";
@@ -330,6 +334,48 @@ public class FinTubeDownloadQueue : IDisposable
             }
 
             throw new Exception(message);
+        }
+    }
+
+    /// <summary>
+    /// Persist the configured cookies to a Netscape cookie file inside the
+    /// plugin data folder and return the matching <c>--cookies "..."</c> yt-dlp
+    /// argument (with a trailing space). Returns an empty string when no cookies
+    /// are configured. Best-effort: a write failure never blocks a download.
+    /// </summary>
+    private string BuildCookieArgs(PluginConfiguration config)
+    {
+        if (string.IsNullOrWhiteSpace(config.cookies))
+            return "";
+
+        try
+        {
+            string dataDir = (Plugin.Instance
+                ?? throw new Exception("Plugin not initialized")).DataFolderPath;
+            Directory.CreateDirectory(dataDir);
+
+            string cookiePath = Path.Combine(dataDir, "cookies.txt");
+
+            // yt-dlp wants Unix line endings in a Netscape cookie file.
+            string contents = config.cookies.Replace("\r\n", "\n").Replace("\r", "\n");
+            if (!contents.EndsWith("\n", StringComparison.Ordinal))
+                contents += "\n";
+
+            File.WriteAllText(cookiePath, contents);
+
+            // Keep the secrets out of group/other reach where the OS supports it.
+            if (!OperatingSystem.IsWindows())
+            {
+                try { File.SetUnixFileMode(cookiePath, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
+                catch { /* best effort */ }
+            }
+
+            return $"--cookies \"{cookiePath}\" ";
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e, "Could not write cookies file; continuing without cookies");
+            return "";
         }
     }
 

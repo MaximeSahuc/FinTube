@@ -247,7 +247,7 @@
 							}
 							if (job.status === 'Failed' && job.error) {
 								html += '  <details data-jobid="' + job.id + '" style="margin-top:0.4em;">';
-								html += '    <summary style="color:#f44336; cursor:pointer; font-size:0.9em;">Download failed — show log</summary>';
+								html += '    <summary style="color:#f44336; cursor:pointer; font-size:0.9em;">Download failed - show log</summary>';
 								html += '    <pre style="color:#f44336; margin:0.3em 0 0; padding:0.5em; background:#1a1a1a; border-radius:3px; font-size:0.8em; white-space:pre-wrap; word-break:break-word; max-height:18em; overflow:auto;">'
 										+ escapeHtml(job.error) + '</pre>';
 								html += '  </details>';
@@ -356,7 +356,7 @@
 						let version = (ok && dep.version) ? ' <span style="opacity:0.7;">v' + escapeHtml(dep.version) + '</span>' : '';
 						let detail = ok
 							? (label + version + (dep.managed ? ' <span style="opacity:0.6;">(managed by FinTube)</span>' : ''))
-							: (label + ' — <span style="color:#f44336;">not found</span>');
+							: (label + ' - <span style="color:#f44336;">not found</span>');
 
 						let html = '<div style="display:flex; align-items:center; justify-content:space-between; gap:1em; padding:0.3em 0;">';
 						html += '  <span>' + icon + ' ' + detail + '</span>';

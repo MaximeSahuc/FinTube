@@ -14,6 +14,7 @@ public class PluginConfiguration : BasePluginConfiguration
     {
         exec_YTDL = "/usr/local/bin/yt-dlp";
         exec_ID3 = "/usr/bin/id3v2";
+        cookies = string.Empty;
     }
 
     /// <summary>
@@ -25,4 +26,11 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Executable for ID3v2
     /// </summary>
     public string exec_ID3 { get; set; }
+
+    /// <summary>
+    /// YouTube cookies in Netscape cookie-file format, passed to yt-dlp via
+    /// <c>--cookies</c>. Used to download age-restricted, private or
+    /// members-only videos. Easiest filled with the FinTube browser extension.
+    /// </summary>
+    public string cookies { get; set; }
 }

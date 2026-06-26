@@ -1,0 +1,47 @@
+{
+  "extName": {
+    "message": "FinTube Cookie Exporter"
+  },
+  "extDesc": {
+    "message": "Export your YouTube cookies to paste into FinTube's Jellyfin plugin settings, so yt-dlp can download age-restricted or private videos."
+  },
+  "popupSupported": {
+    "message": "YouTube tab detected"
+  },
+  "popupNotYouTube": {
+    "message": "Not a YouTube tab - exporting saved cookies anyway"
+  },
+  "popupChecking": {
+    "message": "Checking page…"
+  },
+  "popupLead": {
+    "message": "Copy your YouTube cookies and paste them into FinTube's plugin settings in Jellyfin."
+  },
+  "popupEmpty": {
+    "message": "No cookies found."
+  },
+  "popupCopyBtn": {
+    "message": "Copy cookies"
+  },
+  "popupCopied": {
+    "message": "Copied!"
+  },
+  "popupStep1": {
+    "message": "Click \"Copy cookies\" above."
+  },
+  "popupStep2": {
+    "message": "In Jellyfin: Dashboard → Plugins → FinTube → Settings."
+  },
+  "popupStep3": {
+    "message": "Paste into the Cookies box and save."
+  },
+  "popupNoCookiesTitle": {
+    "message": "No YouTube cookies found"
+  },
+  "popupNoCookiesDesc": {
+    "message": "Log in to youtube.com in this browser first, then reopen this popup."
+  },
+  "popupPrivacy": {
+    "message": "Cookies are read locally and only copied to your clipboard."
+  }
+}
