@@ -176,4 +176,7 @@ echo ">> Done: $TAG"
 echo "   Artifact : $ZIP"
 echo "   MD5      : $CHECKSUM"
 echo "   SourceUrl: $SOURCE_URL"
-[ "$DRY_RUN" -eq 1 ] && echo "   (dry run - nothing was pushed or released)"
+if [ "$DRY_RUN" -eq 1 ]; then
+    echo "   (dry run - nothing was pushed or released)"
+fi
+exit 0
