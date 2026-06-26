@@ -8,54 +8,52 @@
     <div id="FinTubeConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
         <div data-role="content">
             <div class="content-primary">
-                <form id="FinTubeConfigForm">
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="exec_YTDL">Exec YT-DL</label>
-                        <input id="exec_YTDL" name="exec_YTDL" type="text" is="emby-input" />
-                        <div class="fieldDescription">The executable filepath to youtube-dl/yt-dlp</div>
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="exec_ID3">Exec ID3</label>
-                        <input id="exec_ID3" name="exec_ID3" type="text" is="emby-input" />
-                        <div class="fieldDescription">The executable filepath to id3v2</div>
-                    </div>
-                    <div>
-                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
-                            <span>Save</span>
-                        </button>
-                    </div>
-                </form>
+                <h2>FinTube Dependencies</h2>
+                <p style="opacity:0.8;">Binaries are managed automatically by FinTube. Missing tools can be installed from the FinTube download page.</p>
+                <div id="fintube-info-panel" style="margin-top:0.5em; border:1px solid #444; border-radius:4px; padding:0.6em 0.9em; font-size:0.85em; font-family:monospace; word-break:break-all;">Loading…</div>
             </div>
         </div>
         <script type="text/javascript">
-            var TubeFinConfig = {
-                pluginUniqueId: 'de116ac7-1e5e-47c7-8c74-9a357d407f27'
-            };
+            function escapeHtml(text) {
+                let div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            function renderInfo(data) {
+                let panel = document.getElementById('fintube-info-panel');
+
+                function line(label, dep) {
+                    dep = dep || {};
+                    let state = dep.installed
+                        ? ('installed' + (dep.version ? ' v' + dep.version : '') + (dep.managed ? ' (managed)' : ''))
+                        : 'not installed';
+                    return '<div><strong>' + label + ':</strong> ' + escapeHtml(state) + '</div>' +
+                        '<div style="opacity:0.7; margin-bottom:0.4em;">' + escapeHtml(dep.path || '') + '</div>';
+                }
+
+                let html = '<div><strong>Install directory:</strong></div>';
+                html += '<div style="opacity:0.7; margin-bottom:0.6em;">' + escapeHtml(data.binDir || '') + '</div>';
+                html += line('yt-dlp', data.ytdlp);
+                html += line('deno', data.deno);
+                panel.innerHTML = html;
+            }
 
             document.querySelector('#FinTubeConfigPage')
                 .addEventListener('pageshow', function() {
                     Dashboard.showLoadingMsg();
-                    ApiClient.getPluginConfiguration(TubeFinConfig.pluginUniqueId).then(function (config) {
-                        document.querySelector('#exec_YTDL').value = config.exec_YTDL;
-                        document.querySelector('#exec_ID3').value = config.exec_ID3;
-                        Dashboard.hideLoadingMsg();
-                    });
+                    const url = ApiClient.getUrl("fintube/dependencies");
+                    ApiClient.ajax({ type: "GET", url: url, dataType: "json", contentType: 'application/json' })
+                        .then(function(data) {
+                            renderInfo(data);
+                            Dashboard.hideLoadingMsg();
+                        })
+                        .catch(function() {
+                            document.getElementById('fintube-info-panel').textContent =
+                                "Could not load dependency info.";
+                            Dashboard.hideLoadingMsg();
+                        });
                 });
-
-            document.querySelector('#FinTubeConfigForm')
-                .addEventListener('submit', function(e) {
-                Dashboard.showLoadingMsg();
-                ApiClient.getPluginConfiguration(TubeFinConfig.pluginUniqueId).then(function (config) {
-                    config.exec_YTDL = document.querySelector('#exec_YTDL').value;
-                    config.exec_ID3 = document.querySelector('#exec_ID3').value;
-                    ApiClient.updatePluginConfiguration(TubeFinConfig.pluginUniqueId, config).then(function (result) {
-                        Dashboard.processPluginConfigurationUpdateResult(result);
-                    });
-                });
-
-                e.preventDefault();
-                return false;
-            });
         </script>
     </div>
 </body>

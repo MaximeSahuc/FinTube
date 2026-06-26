@@ -3,16 +3,8 @@
 	<div data-role="content">
 		<div class="content-primary">
 			<h2>FinTube Download</h2>
-			<span>Make sure to configure FinTube first.</span>
 
 			<div id="fintube-deps" style="display:none; margin-top:1em;"></div>
-
-			<div style="margin-top:0.5em;">
-				<button id="fintube-info-toggle" is="emby-button" type="button" class="button-flat emby-button">
-					<span>Show dependency info</span>
-				</button>
-				<div id="fintube-info-panel" style="display:none; margin-top:0.5em; border:1px solid #444; border-radius:4px; padding:0.6em 0.9em; font-size:0.85em; font-family:monospace; word-break:break-all;"></div>
-			</div>
 
 			<div class="content-primary">
 				<img id="preview" src="" style="display:none;" />
@@ -36,18 +28,6 @@
 						<div class="fieldDescription">Base library destination path to download file</div>
 					</div>
 
-					<div class="selectContainer">
-						<label class="inputLabel" for="fintube-targetfolder">Target Folder</label>
-						<input id="fintube-targetfolder" class="emby-input" name="fintube-targetfolder" />
-						<div class="fieldDescription">Your Media file will be stored here assuming JellyFin has Write Permissions, this will also recursively create the folder(s) required<br />Relative path from target library (optional)</div>
-					</div>
-
-					<div class="inputContainer">
-						<label class="inputLabel" for="fintube-targetfilename">Target Filename</label>
-						<input id="fintube-targetfilename" class="emby-input" name="fintube-targetfilename" />
-						<div class="fieldDescription">This is the filename if you want to override the yt-dl(p) default (optional)</div>
-					</div>
-
 					<div class="checkboxContainer checkboxContainer-withDescription">
 						<label class="emby-checkbox-label">
 							<input id="fintube-preferfreeformat" name="preferfreeformat" type="checkbox" is="emby-checkbox" data-embycheckbox="true" class="emby-checkbox">
@@ -56,54 +36,19 @@
 						<div class="fieldDescription">Will usually download audio as .opus and videos as .webm</div>
 					</div>
 
-					<div class="checkboxContainer checkboxContainer-withDescription">
-						<label class="emby-checkbox-label">
-							<input id="fintube-audioonly" name="audioonly" type="checkbox" is="emby-checkbox" data-embycheckbox="true" class="emby-checkbox">
-							<span class="checkboxLabel">Audio Only</span>
-						<span class="checkboxOutline"><span class="material-icons checkboxIcon checkboxIcon-checked check" aria-hidden="true"></span><span class="material-icons checkboxIcon checkboxIcon-unchecked " aria-hidden="true"></span></span></label>
-						<div class="fieldDescription">Check this if you want to store as mp3, otherwise the file is saved in mp4</div>
-					</div>
-
-					<div id="fintube-videosettings">
-						<div class="selectContainer">
-							<label class="inputLabel" for="fintube-videoresolution">Video resolution</label>
-							<select id="fintube-videoresolution" class="emby-input" name="fintube-videoresolution">
-								<option value="">default</option>
-								<option value="240">240p</option>
-								<option value="360">360p</option>
-								<option value="480">480p</option>
-								<option value="720">720p</option>
-								<option value="1080" selected>1080p</option>
-								<option value="1440">2k</option>
-								<option value="2160">4k</option>
-							</select>
-							<div class="fieldDescription">Maximum desired resolution if available. Set to default if you want to download the best available.</div>
-						</div>
-					</div>
-
-					<div id="fintube-audiosettings" hidden>						
-						<h3>Audio Settings (Require id3v2 to be configured properly)</h3>
-						
-						<div class="inputContainer">
-							<label class="inputLabel">Artist</label>
-							<input id="fintube-artist" class="emby-input" name="fintube-artist" />
-						</div>
-
-						<div class="inputContainer">
-							<label class="inputLabel">Album</label>
-							<input id="fintube-album" class="emby-input" name="fintube-album" />
-						</div>
-
-						<div class="inputContainer">
-							<label class="inputLabel">Title</label>
-							<input id="fintube-title" class="emby-input" name="fintube-title" />
-						</div>
-
-						<div class="inputContainer">
-							<label class="inputLabel">Track #</label>
-							<input id="fintube-track" type="number" emby-input" name="fintube-track" />
-						</div>
-
+					<div class="selectContainer">
+						<label class="inputLabel" for="fintube-videoresolution">Video resolution</label>
+						<select id="fintube-videoresolution" class="emby-input" name="fintube-videoresolution">
+							<option value="" selected>default</option>
+							<option value="240">240p</option>
+							<option value="360">360p</option>
+							<option value="480">480p</option>
+							<option value="720">720p</option>
+							<option value="1080">1080p</option>
+							<option value="1440">2k</option>
+							<option value="2160">4k</option>
+						</select>
+						<div class="fieldDescription">Maximum desired resolution if available. Set to default if you want to download the best available.</div>
 					</div>
 
 					<button id="fintube-submit" is="emby-button" type="submit" class="raised button-submit block emby-button">
@@ -211,12 +156,6 @@
 					// Start with the download button disabled until a link is entered.
 					document.getElementById('fintube-submit').setAttribute('disabled', true);
 
-					document.getElementById('fintube-audioonly')
-						.addEventListener("change", function() {
-							document.getElementById('fintube-audiosettings').hidden = !this.checked;
-							document.getElementById('fintube-videosettings').hidden = this.checked;
-						});
-
 					document.querySelector('#FinTubeDLForm')
                 		.addEventListener('submit', function(e) {
 							e.preventDefault();
@@ -238,17 +177,10 @@
 							let payload = {
 								"ytid": 				parseYT(getfintubeValue("ytid")),
 								"targetlibrary":		getfintubeValue("targetlibrary"),
-								"targetfilename":		getfintubeValue("targetfilename"),
-								"targetfolder": 		getfintubeValue("targetfolder"),
 								"videoresolution":		getfintubeValue("videoresolution"),
-								"audioonly": 			document.getElementById("fintube-audioonly").checked,
-								"preferfreeformat": 	document.getElementById("fintube-preferfreeformat").checked,
-								"artist": 				getfintubeValue("artist"),
-								"album": 				getfintubeValue("album"),
-								"title": 				getfintubeValue("title"),
-								"track":				Number(getfintubeValue("track"))
+								"preferfreeformat": 	document.getElementById("fintube-preferfreeformat").checked
 							}
-						
+
 
 						let url = "fintube/submit_dl";
 						url = window.ApiClient.getUrl(url);
@@ -256,7 +188,11 @@
 						window.ApiClient.sendCustomQuery(url, payload).then(function(res) {
 							result.innerHTML =
 								"<font color='green'>" + res["message"] + "</font>";
-							resetButton();
+							// Clear the link so the next paste can be queued right away.
+							let input = document.getElementById('fintube-ytid');
+							input.value = "";
+							submitlabel.textContent = "Download";
+							updatePreview();
 							refreshJobs();
 						}).catch(function(err) {
 							let msg = (err && err.responseText) ? err.responseText : "Failed to queue download";
@@ -478,24 +414,6 @@
 						});
 					}
 
-					function renderInfo(data) {
-						let panel = document.getElementById('fintube-info-panel');
-
-						function line(label, dep) {
-							let state = dep.installed
-								? ('installed' + (dep.version ? ' v' + dep.version : '') + (dep.managed ? ' (managed)' : ''))
-								: 'not installed';
-							return '<div><strong>' + label + ':</strong> ' + escapeHtml(state) + '</div>' +
-								'<div style="opacity:0.7; margin-bottom:0.4em;">' + escapeHtml(dep.path || '') + '</div>';
-						}
-
-						let html = '<div><strong>Install directory:</strong></div>';
-						html += '<div style="opacity:0.7; margin-bottom:0.6em;">' + escapeHtml(data.binDir || '') + '</div>';
-						html += line('yt-dlp', data.ytdlp || {});
-						html += line('deno', data.deno || {});
-						panel.innerHTML = html;
-					}
-
 					function installDep(key) {
 						const url = window.ApiClient.getUrl("fintube/dependencies/" + key + "/install");
 						window.ApiClient.ajax({ type: "POST", url: url, dataType: "json", contentType: 'application/json' })
@@ -521,20 +439,11 @@
 						window.ApiClient.ajax({ type: "GET", url: url, dataType: "json", contentType: 'application/json' })
 							.then(function(data) {
 								renderDeps(data);
-								renderInfo(data);
 								let busy = (data.progress && (data.progress.ytdlp.active || data.progress.deno.active));
 								ensureDepPolling(busy);
 							})
 							.catch(function() { /* leave banner hidden on error */ });
 					}
-
-					document.getElementById('fintube-info-toggle')
-						.addEventListener('click', function() {
-							let panel = document.getElementById('fintube-info-panel');
-							let hidden = panel.style.display === 'none';
-							panel.style.display = hidden ? '' : 'none';
-							this.querySelector('span').textContent = hidden ? 'Hide dependency info' : 'Show dependency info';
-						});
 
 					checkDeps();
 				</script>
