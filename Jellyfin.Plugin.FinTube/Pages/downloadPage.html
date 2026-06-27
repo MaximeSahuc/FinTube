@@ -1,476 +1,485 @@
 <div data-role="page" class="page type-interior pluginConfigurationPage"
-	 data-require="emby-button,emby-select,emby-checkbox">
-	<div data-role="content">
-		<div class="content-primary">
-			<h2>FinTube Download</h2>
-
-			<div id="fintube-deps" style="display:none; margin-top:1em;"></div>
-
-			<div class="content-primary">
-				<img id="preview" src="" style="display:none;" />
-
-				<form id="FinTubeDLForm">
-
-					<div class="inputContainer">
-						<label class="inputLabel">YouTube Link or ID</label>
-						<input id="fintube-ytid" class="emby-input" name="fintube-ytid" placeholder="https://youtu.be/..." />
-					</div>
-
-					<div class="selectContainer">
-						<label class="inputLabel" for="fintube-targetlibrary">Target library</label>
-						<select id="fintube-targetlibrary" class="emby-input" name="fintube-targetlibrary">
-						</select>
-						<div class="fieldDescription">Base library destination path to download file</div>
-					</div>
-
-					<div class="checkboxContainer checkboxContainer-withDescription">
-						<label class="emby-checkbox-label">
-							<input id="fintube-audioonly" name="audioonly" type="checkbox" is="emby-checkbox" data-embycheckbox="true" class="emby-checkbox">
-							<span class="checkboxLabel">Audio only</span>
-						<span class="checkboxOutline"><span class="material-icons checkboxIcon checkboxIcon-checked check" aria-hidden="true"></span><span class="material-icons checkboxIcon checkboxIcon-unchecked " aria-hidden="true"></span></span></label>
-						<div class="fieldDescription">Download only the audio track (saved as .mp3, or .opus when "prefer free format" is enabled in settings). Otherwise the full video is saved.</div>
-					</div>
-
-					<div id="fintube-videosettings" class="selectContainer">
-						<label class="inputLabel" for="fintube-videoresolution">Video resolution</label>
-						<select id="fintube-videoresolution" class="emby-input" name="fintube-videoresolution">
-							<option value="" selected>default</option>
-							<option value="240">240p</option>
-							<option value="360">360p</option>
-							<option value="480">480p</option>
-							<option value="720">720p</option>
-							<option value="1080">1080p</option>
-							<option value="1440">2k</option>
-							<option value="2160">4k</option>
-						</select>
-						<div class="fieldDescription">Maximum desired resolution if available. Set to default if you want to download the best available.</div>
-					</div>
-
-					<button id="fintube-submit" is="emby-button" type="submit" class="raised button-submit block emby-button">
-						<span>Download</span>
-					</button>
-
-					<div id="fintube-result">
-
-					</div>
-
-				</form>
-
-				<div class="verticalSection" style="margin-top:1.5em;">
-					<div style="display:flex; align-items:center; justify-content:space-between;">
-						<h3 style="margin:0;">Downloads</h3>
-						<button id="fintube-clear" is="emby-button" type="button" class="button-flat emby-button">
-							<span>Clear finished</span>
-						</button>
-					</div>
-					<div id="fintube-jobs"><p>No downloads yet.</p></div>
-				</div>
-
-				<script type="text/javascript">
-					window.ApiClient.sendCustomQuery = function (url_to_get, query_data) {
-						var post_data = JSON.stringify(query_data);
-						console.log("sendCustomQuery url  = " + url_to_get);
-						console.log("sendCustomQuery data = " + post_data);
-						return this.ajax({
-							type: "POST",
-							url: url_to_get,
-							dataType: "json",
-							data: post_data,
-							contentType: 'application/json'
-						});
-					};
-
-					function parseYT(linkorid) {
-						let id;
-
-						if (linkorid.startsWith("http"))
-						{
-							let regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-							let match = linkorid.match(regExp);
-
-							id = (match && match[2].length == 11) ? match[2] : false;
-						}
-						else
-						{
-							id = linkorid;
-						}
-
-						return id;
-					}
-
-					function getfintubeValue(id) {
-						return document.getElementById("fintube-" + id).value;
-					}
-
-					document.getElementById('preview').onload = function(e) {
-						let submitbtn = document.getElementById('fintube-submit');
-
-						// Youtube returns a 120x90 placeholder for unknown ids.
-						if(this.width == 120)
-							submitbtn.setAttribute('disabled', true);
-						else
-							submitbtn.removeAttribute('disabled');
-					}
-
-					function updatePreview() {
-						let val = document.getElementById('fintube-ytid').value.trim();
-						let id = val ? parseYT(val) : false;
-						let preview = document.getElementById('preview');
-						let submitbtn = document.getElementById('fintube-submit');
-
-						if (id) {
-							preview.style.display = '';
-							preview.src = "https://img.youtube.com/vi/" + id + "/mqdefault.jpg";
-						} else {
-							preview.style.display = 'none';
-							preview.removeAttribute('src');
-							submitbtn.setAttribute('disabled', true);
-						}
-					}
-
-					document.getElementById('fintube-ytid')
-						.addEventListener("input", updatePreview);
-
-					// Hide the (video-only) resolution selector when "Audio only" is on.
-					function updateAudioOnly() {
-						let audioonly = document.getElementById('fintube-audioonly').checked;
-						document.getElementById('fintube-videosettings').style.display =
-							audioonly ? 'none' : '';
-					}
-
-					document.getElementById('fintube-audioonly')
-						.addEventListener('change', updateAudioOnly);
-
-					updateAudioOnly();
-
-					// Start with the download button disabled until a link is entered.
-					document.getElementById('fintube-submit').setAttribute('disabled', true);
-
-					document.querySelector('#FinTubeDLForm')
-                		.addEventListener('submit', function(e) {
-							e.preventDefault();
-
-							let submitbtn = document.getElementById('fintube-submit');
-							let submitlabel = submitbtn.querySelector('span');
-							let result = document.getElementById('fintube-result');
-
-							// Visual feedback so it's clear the click registered.
-							submitbtn.setAttribute('disabled', true);
-							submitlabel.textContent = "Queuing…";
-							result.innerHTML = "<font color='#2196f3'>Queuing download…</font>";
-
-							function resetButton() {
-								submitlabel.textContent = "Download";
-								submitbtn.removeAttribute('disabled');
-							}
-
-							let payload = {
-								"ytid": 				parseYT(getfintubeValue("ytid")),
-								"targetlibrary":		getfintubeValue("targetlibrary"),
-								"videoresolution":		getfintubeValue("videoresolution"),
-								"audioonly": 			document.getElementById("fintube-audioonly").checked
-							}
-
-
-						let url = "fintube/submit_dl";
-						url = window.ApiClient.getUrl(url);
-
-						window.ApiClient.sendCustomQuery(url, payload).then(function(res) {
-							result.innerHTML =
-								"<font color='green'>" + res["message"] + "</font>";
-							// Clear the link so the next paste can be queued right away.
-							let input = document.getElementById('fintube-ytid');
-							input.value = "";
-							submitlabel.textContent = "Download";
-							updatePreview();
-							refreshJobs();
-						}).catch(function(err) {
-							let msg = (err && err.responseText) ? err.responseText : "Failed to queue download";
-							result.innerHTML =
-								"<font color='red'>" + msg + "</font>";
-							resetButton();
-						});
-					});
-
-					function escapeHtml(text) {
-						let div = document.createElement('div');
-						div.textContent = text;
-						return div.innerHTML;
-					}
-
-					function statusColor(status) {
-						switch (status) {
-							case 'Running':   return '#2196f3';
-							case 'Completed': return '#4caf50';
-							case 'Failed':    return '#f44336';
-							default:          return '#9e9e9e';
-						}
-					}
-
-					let lastJobsHtml = null;
-
-					function renderJobs(jobs) {
-						let container = document.getElementById('fintube-jobs');
-						if (!jobs || jobs.length === 0) {
-							if (lastJobsHtml !== "") {
-								container.innerHTML = "<p>No downloads yet.</p>";
-								lastJobsHtml = "";
-							}
-							return;
-						}
-
-						let html = "";
-						for (let job of jobs) {
-							let color = statusColor(job.status);
-							let pct = (typeof job.progress === 'number') ? job.progress : 0;
-							let showBar = (job.status === 'Running');
-							html += '<div style="border:1px solid #444; border-radius:4px; padding:0.6em 0.8em; margin-bottom:0.5em;">';
-							html += '  <div style="display:flex; justify-content:space-between; align-items:center;">';
-							html += '    <strong>' + escapeHtml(job.label || job.ytid) + '</strong>';
-							html += '    <span style="color:' + color + '; font-weight:bold;">' + job.status +
-									(showBar ? ' ' + pct + '%' : '') + '</span>';
-							html += '  </div>';
-							if (showBar) {
-								html += '  <div style="background:#333; border-radius:3px; height:8px; margin-top:0.4em; overflow:hidden;">';
-								html += '    <div style="background:' + color + '; height:100%; width:' + pct + '%; transition:width .3s;"></div>';
-								html += '  </div>';
-							}
-							if (job.status === 'Failed') {
-								if (job.error) {
-									html += '  <details data-jobid="' + job.id + '" style="margin-top:0.4em;">';
-									html += '    <summary style="color:#f44336; cursor:pointer; font-size:0.9em;">Download failed - show log</summary>';
-									html += '    <pre style="color:#f44336; margin:0.3em 0 0; padding:0.5em; background:#1a1a1a; border-radius:3px; font-size:0.8em; white-space:pre-wrap; word-break:break-word; max-height:18em; overflow:auto;">'
-											+ escapeHtml(job.error) + '</pre>';
-									html += '  </details>';
-								}
-								html += '  <button is="emby-button" type="button" class="raised emby-button fintube-retry-btn" data-jobid="' + job.id + '" style="margin-top:0.5em;">';
-								html += '    <span>Retry</span>';
-								html += '  </button>';
-							}
-							html += '</div>';
-						}
-
-						// Nothing changed: leave the DOM untouched so open log panels
-						// (and any in-progress text selection) are preserved.
-						if (html === lastJobsHtml)
-							return;
-
-						// Remember which log panels are open so we can restore them
-						// after we rebuild the list.
-						let openJobs = {};
-						container.querySelectorAll('details[data-jobid]').forEach(function(d) {
-							if (d.open)
-								openJobs[d.getAttribute('data-jobid')] = true;
-						});
-
-						container.innerHTML = html;
-						lastJobsHtml = html;
-
-						container.querySelectorAll('details[data-jobid]').forEach(function(d) {
-							if (openJobs[d.getAttribute('data-jobid')])
-								d.open = true;
-						});
-
-						container.querySelectorAll('.fintube-retry-btn').forEach(function(btn) {
-							btn.addEventListener('click', function() {
-								retryJob(btn.getAttribute('data-jobid'), btn);
-							});
-						});
-					}
-
-					function retryJob(id, btn) {
-						if (btn) {
-							btn.setAttribute('disabled', true);
-							let label = btn.querySelector('span');
-							if (label) label.textContent = "Retrying…";
-						}
-						const url = window.ApiClient.getUrl("fintube/jobs/" + id + "/retry");
-						window.ApiClient.ajax({ type: "POST", url: url, dataType: "json", contentType: 'application/json' })
-							.then(function() {
-								// Force a re-render so the job's new state shows immediately.
-								lastJobsHtml = null;
-								refreshJobs();
-							})
-							.catch(function() {
-								if (btn) {
-									btn.removeAttribute('disabled');
-									let label = btn.querySelector('span');
-									if (label) label.textContent = "Retry";
-								}
-							});
-					}
-
-					function refreshJobs() {
-						const url = window.ApiClient.getUrl("fintube/jobs");
-						window.ApiClient.ajax({
-							type: "GET",
-							url: url,
-							dataType: "json",
-							contentType: 'application/json'
-						}).then(function(result) {
-							renderJobs(result.data);
-						});
-					}
-
-					document.getElementById('fintube-clear')
-						.addEventListener('click', function() {
-							const url = window.ApiClient.getUrl("fintube/jobs/clear");
-							window.ApiClient.ajax({ type: "POST", url: url }).then(refreshJobs);
-						});
-
-					refreshJobs();
-					setInterval(refreshJobs, 2000);
-
-					window.ApiClient.getLibraries = function() {
-						const url = window.ApiClient.getUrl("fintube/libraries");
-						return this.ajax({
-							type: "GET",
-							url: url,
-							dataType: "json",
-							contentType: 'application/json'
-						});
-					};
-
-					(function() {
-						window.ApiClient.getLibraries().then(function(result) {
-							let librariesHtml = ""
-							for (let library of result.data) {
-								for (let location of library) {
-									librariesHtml += '<option value="' + location + '">' + location + '</option>'
-								}
-							}
-							document.getElementById('fintube-targetlibrary').innerHTML = librariesHtml;
-						});
-					})();
-
-					// ---- Dependency detection & in-app install ----
-
-					let depPollTimer = null;
-
-					function fmtMB(bytes) {
-						return (bytes / 1048576).toFixed(1);
-					}
-
-					function progressBar(prog) {
-						let pct = (typeof prog.percent === 'number') ? prog.percent : 0;
-						let label;
-						if (prog.phase === 'extracting') {
-							label = 'Extracting…';
-							pct = 100;
-						} else if (prog.total > 0) {
-							label = 'Downloading… ' + pct + '% (' + fmtMB(prog.downloaded) + ' / ' + fmtMB(prog.total) + ' MB)';
-						} else {
-							label = 'Downloading… ' + fmtMB(prog.downloaded) + ' MB';
-						}
-
-						let html = '<div style="min-width:14em;">';
-						html += '  <div style="font-size:0.85em; margin-bottom:0.2em;">' + label + '</div>';
-						html += '  <div style="background:#333; border-radius:3px; height:8px; overflow:hidden;">';
-						html += '    <div style="background:#2196f3; height:100%; width:' + pct + '%; transition:width .3s;"></div>';
-						html += '  </div>';
-						html += '</div>';
-						return html;
-					}
-
-					function depRow(key, label, dep, required, prog) {
-						let ok = dep && dep.installed;
-						let installing = prog && prog.active;
-						let icon = ok ? '✅' : (required ? '⛔' : '⚠️');
-						let version = (ok && dep.version) ? ' <span style="opacity:0.7;">v' + escapeHtml(dep.version) + '</span>' : '';
-						let detail = ok
-							? (label + version + (dep.managed ? ' <span style="opacity:0.6;">(managed by FinTube)</span>' : ''))
-							: (label + ' - <span style="color:#f44336;">not found</span>');
-
-						let html = '<div style="display:flex; align-items:center; justify-content:space-between; gap:1em; padding:0.3em 0;">';
-						html += '  <span>' + icon + ' ' + detail + '</span>';
-						if (installing) {
-							html += progressBar(prog);
-						} else if (!ok && dep && dep.downloadable) {
-							html += '  <button is="emby-button" type="button" class="raised emby-button fintube-install-btn" data-dep="' + key + '" style="flex:none;">' +
-									'<span>Install ' + label + '</span></button>';
-						} else if (!ok && dep && !dep.downloadable) {
-							html += '  <span style="opacity:0.7; font-size:0.85em;">install manually</span>';
-						}
-						html += '</div>';
-						if (prog && prog.phase === 'error' && prog.error) {
-							html += '<div style="color:#f44336; font-size:0.85em;">' + escapeHtml(prog.error) + '</div>';
-						}
-						return html;
-					}
-
-					function renderDeps(data) {
-						let box = document.getElementById('fintube-deps');
-						let progYt = (data.progress && data.progress.ytdlp) || {};
-						let progDeno = (data.progress && data.progress.deno) || {};
-						let ytOk = data.ytdlp && data.ytdlp.installed;
-						let denoOk = data.deno && data.deno.installed;
-						let busy = progYt.active || progDeno.active;
-
-						// Everything present and nothing running: hide the banner.
-						if (ytOk && denoOk && !busy) {
-							box.style.display = 'none';
-							box.innerHTML = '';
-							return;
-						}
-
-						// yt-dlp missing is blocking (red), deno missing is a recommendation (amber).
-						let blocking = !ytOk;
-						let border = blocking ? '#f44336' : '#ff9800';
-						let bg = blocking ? 'rgba(244,67,54,0.12)' : 'rgba(255,152,0,0.12)';
-
-						let html = '<div style="border:1px solid ' + border + '; background:' + bg + '; border-radius:4px; padding:0.8em 1em;">';
-						html += '  <strong>' + (blocking ? 'Missing dependencies' : 'Recommended dependency missing') + '</strong>';
-						html += '  <div style="margin-top:0.5em;">';
-						html += depRow('ytdlp', 'yt-dlp', data.ytdlp, true, progYt);
-						html += depRow('deno', 'deno (JS runtime)', data.deno, false, progDeno);
-						html += '  </div>';
-						if (!denoOk && ytOk && !progDeno.active) {
-							html += '  <div style="margin-top:0.4em; font-size:0.85em; opacity:0.8;">Without a JS runtime, some YouTube formats may be missing.</div>';
-						}
-						html += '</div>';
-
-						box.innerHTML = html;
-						box.style.display = '';
-
-						box.querySelectorAll('.fintube-install-btn').forEach(function(btn) {
-							btn.addEventListener('click', function() { installDep(btn.getAttribute('data-dep')); });
-						});
-					}
-
-					function installDep(key) {
-						const url = window.ApiClient.getUrl("fintube/dependencies/" + key + "/install");
-						window.ApiClient.ajax({ type: "POST", url: url, dataType: "json", contentType: 'application/json' })
-							.then(function() { checkDeps(); })
-							.catch(function(err) {
-								let m = (err && err.responseText) ? err.responseText : "Installation failed";
-								let box = document.getElementById('fintube-deps');
-								box.insertAdjacentHTML('beforeend', "<div style='color:#f44336; margin-top:0.3em;'>" + escapeHtml(m) + "</div>");
-							});
-					}
-
-					function ensureDepPolling(busy) {
-						if (busy && !depPollTimer) {
-							depPollTimer = setInterval(checkDeps, 700);
-						} else if (!busy && depPollTimer) {
-							clearInterval(depPollTimer);
-							depPollTimer = null;
-						}
-					}
-
-					function checkDeps() {
-						const url = window.ApiClient.getUrl("fintube/dependencies");
-						window.ApiClient.ajax({ type: "GET", url: url, dataType: "json", contentType: 'application/json' })
-							.then(function(data) {
-								renderDeps(data);
-								let busy = (data.progress && (data.progress.ytdlp.active || data.progress.deno.active));
-								ensureDepPolling(busy);
-							})
-							.catch(function() { /* leave banner hidden on error */ });
-					}
-
-					checkDeps();
-				</script>
-			</div>
+    data-require="emby-button,emby-select,emby-checkbox">
+    <div data-role="content">
+        <div class="content-primary">
+            <h2>FinTube Download</h2>
+
+            <div id="fintube-deps" style="display:none; margin-top:1em;"></div>
+
+            <div class="content-primary">
+                <img id="preview" src="" style="display:none;" />
+
+                <form id="FinTubeDLForm">
+
+                    <div class="inputContainer">
+                        <label class="inputLabel">YouTube Link or ID</label>
+                        <input id="fintube-ytid" class="emby-input" name="fintube-ytid"
+                            placeholder="https://youtu.be/..." />
+                    </div>
+
+                    <div class="selectContainer">
+                        <label class="inputLabel" for="fintube-targetlibrary">Target library</label>
+                        <select id="fintube-targetlibrary" class="emby-input" name="fintube-targetlibrary">
+                        </select>
+                        <div class="fieldDescription">Base library destination path to download file</div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="fintube-audioonly" name="audioonly" type="checkbox" is="emby-checkbox"
+                                data-embycheckbox="true" class="emby-checkbox">
+                            <span class="checkboxLabel">Audio only</span>
+                            <span class="checkboxOutline"><span
+                                    class="material-icons checkboxIcon checkboxIcon-checked check"
+                                    aria-hidden="true"></span><span
+                                    class="material-icons checkboxIcon checkboxIcon-unchecked "
+                                    aria-hidden="true"></span></span></label>
+                        <div class="fieldDescription">Download only the audio track. Otherwise the full video is saved.
+                        </div>
+                    </div>
+
+                    <div id="fintube-videosettings" class="selectContainer">
+                        <label class="inputLabel" for="fintube-videoresolution">Video resolution</label>
+                        <select id="fintube-videoresolution" class="emby-input" name="fintube-videoresolution">
+                            <option value="" selected>default</option>
+                            <option value="240">240p</option>
+                            <option value="360">360p</option>
+                            <option value="480">480p</option>
+                            <option value="720">720p</option>
+                            <option value="1080">1080p</option>
+                            <option value="1440">2k</option>
+                            <option value="2160">4k</option>
+                        </select>
+                        <div class="fieldDescription">Maximum desired resolution if available. Set to default if you
+                            want to download the best available.</div>
+                    </div>
+
+                    <button id="fintube-submit" is="emby-button" type="submit"
+                        class="raised button-submit block emby-button">
+                        <span>Download</span>
+                    </button>
+
+                    <div id="fintube-result">
+
+                    </div>
+
+                </form>
+
+                <div class="verticalSection" style="margin-top:1.5em;">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <h3 style="margin:0;">Downloads</h3>
+                        <button id="fintube-clear" is="emby-button" type="button" class="button-flat emby-button">
+                            <span>Clear finished</span>
+                        </button>
+                    </div>
+                    <div id="fintube-jobs">
+                        <p>No downloads yet.</p>
+                    </div>
+                </div>
+
+                <script type="text/javascript">
+                    window.ApiClient.sendCustomQuery = function (url_to_get, query_data) {
+                        var post_data = JSON.stringify(query_data);
+                        console.log("sendCustomQuery url  = " + url_to_get);
+                        console.log("sendCustomQuery data = " + post_data);
+                        return this.ajax({
+                            type: "POST",
+                            url: url_to_get,
+                            dataType: "json",
+                            data: post_data,
+                            contentType: 'application/json'
+                        });
+                    };
+
+                    function parseYT(linkorid) {
+                        let id;
+
+                        if (linkorid.startsWith("http")) {
+                            let regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+                            let match = linkorid.match(regExp);
+
+                            id = (match && match[2].length == 11) ? match[2] : false;
+                        }
+                        else {
+                            id = linkorid;
+                        }
+
+                        return id;
+                    }
+
+                    function getfintubeValue(id) {
+                        return document.getElementById("fintube-" + id).value;
+                    }
+
+                    document.getElementById('preview').onload = function (e) {
+                        let submitbtn = document.getElementById('fintube-submit');
+
+                        // Youtube returns a 120x90 placeholder for unknown ids.
+                        if (this.width == 120)
+                            submitbtn.setAttribute('disabled', true);
+                        else
+                            submitbtn.removeAttribute('disabled');
+                    }
+
+                    function updatePreview() {
+                        let val = document.getElementById('fintube-ytid').value.trim();
+                        let id = val ? parseYT(val) : false;
+                        let preview = document.getElementById('preview');
+                        let submitbtn = document.getElementById('fintube-submit');
+
+                        if (id) {
+                            preview.style.display = '';
+                            preview.src = "https://img.youtube.com/vi/" + id + "/mqdefault.jpg";
+                        } else {
+                            preview.style.display = 'none';
+                            preview.removeAttribute('src');
+                            submitbtn.setAttribute('disabled', true);
+                        }
+                    }
+
+                    document.getElementById('fintube-ytid')
+                        .addEventListener("input", updatePreview);
+
+                    // Hide the (video-only) resolution selector when "Audio only" is on.
+                    function updateAudioOnly() {
+                        let audioonly = document.getElementById('fintube-audioonly').checked;
+                        document.getElementById('fintube-videosettings').style.display =
+                            audioonly ? 'none' : '';
+                    }
+
+                    document.getElementById('fintube-audioonly')
+                        .addEventListener('change', updateAudioOnly);
+
+                    updateAudioOnly();
+
+                    // Start with the download button disabled until a link is entered.
+                    document.getElementById('fintube-submit').setAttribute('disabled', true);
+
+                    document.querySelector('#FinTubeDLForm')
+                        .addEventListener('submit', function (e) {
+                            e.preventDefault();
+
+                            let submitbtn = document.getElementById('fintube-submit');
+                            let submitlabel = submitbtn.querySelector('span');
+                            let result = document.getElementById('fintube-result');
+
+                            // Visual feedback so it's clear the click registered.
+                            submitbtn.setAttribute('disabled', true);
+                            submitlabel.textContent = "Queuing…";
+                            result.innerHTML = "<font color='#2196f3'>Queuing download…</font>";
+
+                            function resetButton() {
+                                submitlabel.textContent = "Download";
+                                submitbtn.removeAttribute('disabled');
+                            }
+
+                            let payload = {
+                                "ytid": parseYT(getfintubeValue("ytid")),
+                                "targetlibrary": getfintubeValue("targetlibrary"),
+                                "videoresolution": getfintubeValue("videoresolution"),
+                                "audioonly": document.getElementById("fintube-audioonly").checked
+                            }
+
+
+                            let url = "fintube/submit_dl";
+                            url = window.ApiClient.getUrl(url);
+
+                            window.ApiClient.sendCustomQuery(url, payload).then(function (res) {
+                                result.innerHTML =
+                                    "<font color='green'>" + res["message"] + "</font>";
+                                // Clear the link so the next paste can be queued right away.
+                                let input = document.getElementById('fintube-ytid');
+                                input.value = "";
+                                submitlabel.textContent = "Download";
+                                updatePreview();
+                                refreshJobs();
+                            }).catch(function (err) {
+                                let msg = (err && err.responseText) ? err.responseText : "Failed to queue download";
+                                result.innerHTML =
+                                    "<font color='red'>" + msg + "</font>";
+                                resetButton();
+                            });
+                        });
+
+                    function escapeHtml(text) {
+                        let div = document.createElement('div');
+                        div.textContent = text;
+                        return div.innerHTML;
+                    }
+
+                    function statusColor(status) {
+                        switch (status) {
+                            case 'Running': return '#2196f3';
+                            case 'Completed': return '#4caf50';
+                            case 'Failed': return '#f44336';
+                            default: return '#9e9e9e';
+                        }
+                    }
+
+                    let lastJobsHtml = null;
+
+                    function renderJobs(jobs) {
+                        let container = document.getElementById('fintube-jobs');
+                        if (!jobs || jobs.length === 0) {
+                            if (lastJobsHtml !== "") {
+                                container.innerHTML = "<p>No downloads yet.</p>";
+                                lastJobsHtml = "";
+                            }
+                            return;
+                        }
+
+                        let html = "";
+                        for (let job of jobs) {
+                            let color = statusColor(job.status);
+                            let pct = (typeof job.progress === 'number') ? job.progress : 0;
+                            let showBar = (job.status === 'Running');
+                            html += '<div style="border:1px solid #444; border-radius:4px; padding:0.6em 0.8em; margin-bottom:0.5em;">';
+                            html += '  <div style="display:flex; justify-content:space-between; align-items:center;">';
+                            html += '    <strong>' + escapeHtml(job.label || job.ytid) + '</strong>';
+                            html += '    <span style="color:' + color + '; font-weight:bold;">' + job.status +
+                                (showBar ? ' ' + pct + '%' : '') + '</span>';
+                            html += '  </div>';
+                            if (showBar) {
+                                html += '  <div style="background:#333; border-radius:3px; height:8px; margin-top:0.4em; overflow:hidden;">';
+                                html += '    <div style="background:' + color + '; height:100%; width:' + pct + '%; transition:width .3s;"></div>';
+                                html += '  </div>';
+                            }
+                            if (job.status === 'Failed') {
+                                if (job.error) {
+                                    html += '  <details data-jobid="' + job.id + '" style="margin-top:0.4em;">';
+                                    html += '    <summary style="color:#f44336; cursor:pointer; font-size:0.9em;">Download failed - show log</summary>';
+                                    html += '    <pre style="color:#f44336; margin:0.3em 0 0; padding:0.5em; background:#1a1a1a; border-radius:3px; font-size:0.8em; white-space:pre-wrap; word-break:break-word; max-height:18em; overflow:auto;">'
+                                        + escapeHtml(job.error) + '</pre>';
+                                    html += '  </details>';
+                                }
+                                html += '  <button is="emby-button" type="button" class="raised emby-button fintube-retry-btn" data-jobid="' + job.id + '" style="margin-top:0.5em;">';
+                                html += '    <span>Retry</span>';
+                                html += '  </button>';
+                            }
+                            html += '</div>';
+                        }
+
+                        // Nothing changed: leave the DOM untouched so open log panels
+                        // (and any in-progress text selection) are preserved.
+                        if (html === lastJobsHtml)
+                            return;
+
+                        // Remember which log panels are open so we can restore them
+                        // after we rebuild the list.
+                        let openJobs = {};
+                        container.querySelectorAll('details[data-jobid]').forEach(function (d) {
+                            if (d.open)
+                                openJobs[d.getAttribute('data-jobid')] = true;
+                        });
+
+                        container.innerHTML = html;
+                        lastJobsHtml = html;
+
+                        container.querySelectorAll('details[data-jobid]').forEach(function (d) {
+                            if (openJobs[d.getAttribute('data-jobid')])
+                                d.open = true;
+                        });
+
+                        container.querySelectorAll('.fintube-retry-btn').forEach(function (btn) {
+                            btn.addEventListener('click', function () {
+                                retryJob(btn.getAttribute('data-jobid'), btn);
+                            });
+                        });
+                    }
+
+                    function retryJob(id, btn) {
+                        if (btn) {
+                            btn.setAttribute('disabled', true);
+                            let label = btn.querySelector('span');
+                            if (label) label.textContent = "Retrying…";
+                        }
+                        const url = window.ApiClient.getUrl("fintube/jobs/" + id + "/retry");
+                        window.ApiClient.ajax({type: "POST", url: url, dataType: "json", contentType: 'application/json'})
+                            .then(function () {
+                                // Force a re-render so the job's new state shows immediately.
+                                lastJobsHtml = null;
+                                refreshJobs();
+                            })
+                            .catch(function () {
+                                if (btn) {
+                                    btn.removeAttribute('disabled');
+                                    let label = btn.querySelector('span');
+                                    if (label) label.textContent = "Retry";
+                                }
+                            });
+                    }
+
+                    function refreshJobs() {
+                        const url = window.ApiClient.getUrl("fintube/jobs");
+                        window.ApiClient.ajax({
+                            type: "GET",
+                            url: url,
+                            dataType: "json",
+                            contentType: 'application/json'
+                        }).then(function (result) {
+                            renderJobs(result.data);
+                        });
+                    }
+
+                    document.getElementById('fintube-clear')
+                        .addEventListener('click', function () {
+                            const url = window.ApiClient.getUrl("fintube/jobs/clear");
+                            window.ApiClient.ajax({type: "POST", url: url}).then(refreshJobs);
+                        });
+
+                    refreshJobs();
+                    setInterval(refreshJobs, 2000);
+
+                    window.ApiClient.getLibraries = function () {
+                        const url = window.ApiClient.getUrl("fintube/libraries");
+                        return this.ajax({
+                            type: "GET",
+                            url: url,
+                            dataType: "json",
+                            contentType: 'application/json'
+                        });
+                    };
+
+                    (function () {
+                        window.ApiClient.getLibraries().then(function (result) {
+                            let librariesHtml = ""
+                            for (let library of result.data) {
+                                for (let location of library) {
+                                    librariesHtml += '<option value="' + location + '">' + location + '</option>'
+                                }
+                            }
+                            document.getElementById('fintube-targetlibrary').innerHTML = librariesHtml;
+                        });
+                    })();
+
+                    // ---- Dependency detection & in-app install ----
+
+                    let depPollTimer = null;
+
+                    function fmtMB(bytes) {
+                        return (bytes / 1048576).toFixed(1);
+                    }
+
+                    function progressBar(prog) {
+                        let pct = (typeof prog.percent === 'number') ? prog.percent : 0;
+                        let label;
+                        if (prog.phase === 'extracting') {
+                            label = 'Extracting…';
+                            pct = 100;
+                        } else if (prog.total > 0) {
+                            label = 'Downloading… ' + pct + '% (' + fmtMB(prog.downloaded) + ' / ' + fmtMB(prog.total) + ' MB)';
+                        } else {
+                            label = 'Downloading… ' + fmtMB(prog.downloaded) + ' MB';
+                        }
+
+                        let html = '<div style="min-width:14em;">';
+                        html += '  <div style="font-size:0.85em; margin-bottom:0.2em;">' + label + '</div>';
+                        html += '  <div style="background:#333; border-radius:3px; height:8px; overflow:hidden;">';
+                        html += '    <div style="background:#2196f3; height:100%; width:' + pct + '%; transition:width .3s;"></div>';
+                        html += '  </div>';
+                        html += '</div>';
+                        return html;
+                    }
+
+                    function depRow(key, label, dep, required, prog) {
+                        let ok = dep && dep.installed;
+                        let installing = prog && prog.active;
+                        let icon = ok ? '✅' : (required ? '⛔' : '⚠️');
+                        let version = (ok && dep.version) ? ' <span style="opacity:0.7;">v' + escapeHtml(dep.version) + '</span>' : '';
+                        let detail = ok
+                            ? (label + version + (dep.managed ? ' <span style="opacity:0.6;">(managed by FinTube)</span>' : ''))
+                            : (label + ' - <span style="color:#f44336;">not found</span>');
+
+                        let html = '<div style="display:flex; align-items:center; justify-content:space-between; gap:1em; padding:0.3em 0;">';
+                        html += '  <span>' + icon + ' ' + detail + '</span>';
+                        if (installing) {
+                            html += progressBar(prog);
+                        } else if (!ok && dep && dep.downloadable) {
+                            html += '  <button is="emby-button" type="button" class="raised emby-button fintube-install-btn" data-dep="' + key + '" style="flex:none;">' +
+                                '<span>Install ' + label + '</span></button>';
+                        } else if (!ok && dep && !dep.downloadable) {
+                            html += '  <span style="opacity:0.7; font-size:0.85em;">install manually</span>';
+                        }
+                        html += '</div>';
+                        if (prog && prog.phase === 'error' && prog.error) {
+                            html += '<div style="color:#f44336; font-size:0.85em;">' + escapeHtml(prog.error) + '</div>';
+                        }
+                        return html;
+                    }
+
+                    function renderDeps(data) {
+                        let box = document.getElementById('fintube-deps');
+                        let progYt = (data.progress && data.progress.ytdlp) || {};
+                        let progDeno = (data.progress && data.progress.deno) || {};
+                        let ytOk = data.ytdlp && data.ytdlp.installed;
+                        let denoOk = data.deno && data.deno.installed;
+                        let busy = progYt.active || progDeno.active;
+
+                        // Everything present and nothing running: hide the banner.
+                        if (ytOk && denoOk && !busy) {
+                            box.style.display = 'none';
+                            box.innerHTML = '';
+                            return;
+                        }
+
+                        // yt-dlp missing is blocking (red), deno missing is a recommendation (amber).
+                        let blocking = !ytOk;
+                        let border = blocking ? '#f44336' : '#ff9800';
+                        let bg = blocking ? 'rgba(244,67,54,0.12)' : 'rgba(255,152,0,0.12)';
+
+                        let html = '<div style="border:1px solid ' + border + '; background:' + bg + '; border-radius:4px; padding:0.8em 1em;">';
+                        html += '  <strong>' + (blocking ? 'Missing dependencies' : 'Recommended dependency missing') + '</strong>';
+                        html += '  <div style="margin-top:0.5em;">';
+                        html += depRow('ytdlp', 'yt-dlp', data.ytdlp, true, progYt);
+                        html += depRow('deno', 'deno (JS runtime)', data.deno, false, progDeno);
+                        html += '  </div>';
+                        if (!denoOk && ytOk && !progDeno.active) {
+                            html += '  <div style="margin-top:0.4em; font-size:0.85em; opacity:0.8;">Without a JS runtime, some YouTube formats may be missing.</div>';
+                        }
+                        html += '</div>';
+
+                        box.innerHTML = html;
+                        box.style.display = '';
+
+                        box.querySelectorAll('.fintube-install-btn').forEach(function (btn) {
+                            btn.addEventListener('click', function () {installDep(btn.getAttribute('data-dep'));});
+                        });
+                    }
+
+                    function installDep(key) {
+                        const url = window.ApiClient.getUrl("fintube/dependencies/" + key + "/install");
+                        window.ApiClient.ajax({type: "POST", url: url, dataType: "json", contentType: 'application/json'})
+                            .then(function () {checkDeps();})
+                            .catch(function (err) {
+                                let m = (err && err.responseText) ? err.responseText : "Installation failed";
+                                let box = document.getElementById('fintube-deps');
+                                box.insertAdjacentHTML('beforeend', "<div style='color:#f44336; margin-top:0.3em;'>" + escapeHtml(m) + "</div>");
+                            });
+                    }
+
+                    function ensureDepPolling(busy) {
+                        if (busy && !depPollTimer) {
+                            depPollTimer = setInterval(checkDeps, 700);
+                        } else if (!busy && depPollTimer) {
+                            clearInterval(depPollTimer);
+                            depPollTimer = null;
+                        }
+                    }
+
+                    function checkDeps() {
+                        const url = window.ApiClient.getUrl("fintube/dependencies");
+                        window.ApiClient.ajax({type: "GET", url: url, dataType: "json", contentType: 'application/json'})
+                            .then(function (data) {
+                                renderDeps(data);
+                                let busy = (data.progress && (data.progress.ytdlp.active || data.progress.deno.active));
+                                ensureDepPolling(busy);
+                            })
+                            .catch(function () { /* leave banner hidden on error */});
+                    }
+
+                    checkDeps();
+                </script>
+            </div>
         </div>
-    </div> 
+    </div>
 </div>

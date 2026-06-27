@@ -255,22 +255,19 @@ public class FinTubeDownloadQueue : IDisposable
         // Check for tags
         bool hasTags = 1 < (data.title.Length + data.album.Length + data.artist.Length + data.track.ToString().Length);
 
-        string targetFilename;
-        string targetExtension = data.preferfreeformat
-            ? (data.audioonly ? ".opus" : ".webm")
-            : (data.audioonly ? ".mp3" : ".mp4");
-
-        if (!string.IsNullOrWhiteSpace(data.targetfilename))
-            targetFilename = Path.Combine(targetPath, $"{data.targetfilename}");
-        else if (data.audioonly && hasTags && data.title.Length > 1)
-            targetFilename = Path.Combine(targetPath, $"{data.title}");
-        else
-            targetFilename = Path.Combine(targetPath, $"{data.ytid}");
-
-        if (File.Exists(targetFilename))
-            throw new Exception($"File {targetFilename} already exists");
+        // Audio and video downloads share the same output layout so the resulting
+        // files live under the same channel/title/id structure regardless of mode.
+        string targetFilename = Path.Combine(targetPath, "%(channel,uploader)s/%(title)s/%(id)s.%(ext)s");
 
         status.Append($"Filename: {targetFilename}<br>");
+
+        // When tagging audio we need the real path yt-dlp produces (the output
+        // template above is only resolved by yt-dlp), so have it print the final
+        // file path to a temp file we read back afterwards.
+        bool tagAudio = data.audioonly && hasid3v2 && hasTags;
+        string? printPathFile = tagAudio
+            ? Path.Combine(Path.GetTempPath(), $"fintube-{job.Id}.path")
+            : null;
 
         string progressArgs = "--newline --progress-template \"download:[fintube] %(progress._percent_str)s\" ";
         string args = jsRuntimeArgs + cookieArgs + progressArgs + "--write-description --write-info-json --write-thumbnail --write-link --write-subs --audio-quality 0 ";
@@ -281,7 +278,8 @@ public class FinTubeDownloadQueue : IDisposable
                 args += " --prefer-free-format";
             else
                 args += " --audio-format mp3";
-            args += $" -o \"{targetFilename}.%(ext)s\" {data.ytid}";
+            if (printPathFile is not null)
+                args += $" --print-to-file after_move:filepath \"{printPathFile}\"";
         }
         else
         {
@@ -291,23 +289,27 @@ public class FinTubeDownloadQueue : IDisposable
                 args += "-t mp4";
             if (!string.IsNullOrEmpty(data.videoresolution))
                 args += $" -S res:{data.videoresolution}";
-
-            targetFilename = Path.Combine(targetPath, "%(channel,uploader)s/%(title)s/%(id)s.%(ext)s");
-            args += $" -o \"{targetFilename}\" {data.ytid}";
         }
+        args += $" -o \"{targetFilename}\" {data.ytid}";
 
         status.Append($"Exec: {ytdlp} {args}<br>");
         job.Log = status.ToString();
 
         RunProcess(ytdlp, args, job, ct, parseProgress: true);
 
-        // If audioonly AND id3v2 AND tags are set - Tag the mp3 file
-        if (data.audioonly && hasid3v2 && hasTags)
+        // If audioonly AND id3v2 AND tags are set - Tag the produced audio file
+        if (tagAudio && File.Exists(printPathFile))
         {
-            string id3args = $"-a \"{data.artist}\" -A \"{data.album}\" -t \"{data.title}\" -T \"{data.track}\" \"{targetFilename}{targetExtension}\"";
-            status.Append($"Exec: {id3v2} {id3args}<br>");
-            job.Log = status.ToString();
-            RunProcess(id3v2!, id3args, job, ct, parseProgress: false);
+            string audioFile = File.ReadAllText(printPathFile).Trim();
+            try { File.Delete(printPathFile!); } catch { /* ignore */ }
+
+            if (!string.IsNullOrWhiteSpace(audioFile) && File.Exists(audioFile))
+            {
+                string id3args = $"-a \"{data.artist}\" -A \"{data.album}\" -t \"{data.title}\" -T \"{data.track}\" \"{audioFile}\"";
+                status.Append($"Exec: {id3v2} {id3args}<br>");
+                job.Log = status.ToString();
+                RunProcess(id3v2!, id3args, job, ct, parseProgress: false);
+            }
         }
 
         status.Append("<font color='green'>File Saved!</font>");
